@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>إدارة النقدية</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 30px; border-radius: 10px; max-width: 900px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        h2 { color: #1e293b; margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 15px; display: flex; justify-content: space-between; }
+        .row { display: flex; gap: 15px; margin-bottom: 15px; }
+        .col { flex: 1; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 13px; color: #475569; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+        select:disabled { background-color: #f3f4f6; color: #6b7280; }
+        .btn-in { background: #10b981; color: white; width: 100%; padding: 12px; border: none; cursor: pointer; font-weight: bold; font-size: 16px; border-radius: 6px; }
+        .btn-out { background: #ef4444; color: white; width: 100%; padding: 12px; border: none; cursor: pointer; font-weight: bold; font-size: 16px; border-radius: 6px; }
+        .bank-box { background: #e0f2fe; padding: 15px; border-radius: 8px; margin-bottom: 15px; display: none; }
+        #linkedInvoiceInfo { display:none; background:#dcfce7; color:#166534; padding:15px; border-radius:8px; margin-bottom:20px; text-align:center; font-size:14px; border:1px solid #86efac; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>💸 إذن حركة نقدية</h2>
+    <input type="hidden" id="editId">
+    <input type="hidden" id="invoiceId">
+    <!-- حقول مخفية لحفظ البيانات القادمة من الفاتورة -->
+    <input type="hidden" id="hiddenCustName">
+    <input type="hidden" id="hiddenCarInfo">
+    
+    <div id="linkedInvoiceInfo"></div>
+
+    <div class="row">
+        <div class="col">
+            <label>نوع الحركة</label>
+            <select id="type" onchange="updateUI()">
+                <option value="Inbound">📥 إذن قبض (توريد)</option>
+                <option value="Outbound">📤 إذن صرف (دفع)</option>
+            </select>
+        </div>
+        <div class="col"><label>التاريخ</label><input type="date" id="date"></div>
+        <div class="col"><label>رقم الإذن</label><input id="serial" placeholder="تلقائي" readonly></div>
+    </div>
+
+    <div class="row">
+        <div class="col">
+            <label id="treasuryLabel">الخزينة / البنك (مدين)</label>
+            <select id="treasuryAcc"><option value="">جاري التحميل...</option></select>
+        </div>
+        <div class="col">
+            <label id="targetLabel">من حساب (دائن)</label>
+            <select id="targetAcc"><option value="">-- اختر --</option></select>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col"><label>المبلغ</label><input type="number" id="amount" style="font-weight:bold;font-size:16px"></div>
+        <div class="col">
+            <label>طريقة الدفع</label>
+            <select id="payMethod" onchange="handlePaymentMethodChange()">
+                <option value="Cash">نقدي (Cash)</option>
+                <option value="Check">شيك (Cheque)</option>
+                <option value="BankTransfer">تحويل بنكي</option>
+                <option value="POS">شبكة (POS)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="bank-box" id="bankDetails">
+        <div class="row">
+            <div class="col"><label>اسم البنك</label><input id="bankName"></div>
+            <div class="col"><label>رقم الشيك / التحويل</label><input id="checkNum"></div>
+            <div class="col"><label>تاريخ الاستحقاق</label><input type="date" id="dueDate"></div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col"><label>البيان (الشرح)</label><input id="desc" placeholder="اكتب تفاصيل العملية..."></div>
+    </div>
+
+    <div class="row">
+        <div class="col"><label>المستلم</label><input id="recv"></div>
+        <div class="col"><label>المحاسب</label><input id="acc" value="Admin" readonly></div>
+    </div>
+
+    <button id="saveBtn" class="btn-in" onclick="save()">📥 حفظ إذن القبض</button>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+    let safeAccounts = [], bankAccounts = [];
+    document.getElementById('date').valueAsDate = new Date();
+
+    window.onload = async () => {
+        await loadAccounts();
+        const params = new URLSearchParams(window.location.search);
+        
+        // لو جاي من فاتورة (سداد)
+        if(params.get('invoiceId')) {
+            document.getElementById('invoiceId').value = params.get('invoiceId');
+            document.getElementById('amount').value = params.get('amount');
+            document.getElementById('desc').value = `سداد فاتورة رقم ${params.get('invNum')}`;
+            
+            // استلام وعرض البيانات
+            const custName = params.get('custName') || '';
+            const carInfo = params.get('carInfo') || '-';
+
+            document.getElementById('hiddenCustName').value = custName;
+            document.getElementById('hiddenCarInfo').value = carInfo;
+
+            // 👇 عرض البيانات بوضوح للمستخدم 👇
+            document.getElementById('linkedInvoiceInfo').style.display = 'block';
+            document.getElementById('linkedInvoiceInfo').innerHTML = `
+                🔗 <b>سداد فاتورة رقم ${params.get('invNum')}</b><br>
+                👤 العميل: ${custName} &nbsp; | &nbsp; 🚗 السيارة: ${carInfo}
+            `;
+            
+            // اختيار العميل تلقائي
+            if(params.get('custId')) {
+                 setTimeout(() => document.getElementById('targetAcc').value = params.get('custId'), 500);
+            }
+        }
+        handlePaymentMethodChange();
+    };
+
+    async function loadAccounts() {
+        const res = await fetch(`${API}/accounts`);
+        const all = await res.json();
+        const subs = all.filter(a => a.isTransactional);
+        
+        safeAccounts = subs.filter(a => a.code.startsWith('1101') || a.name.includes('خزنة'));
+        bankAccounts = subs.filter(a => a.code.startsWith('1102') || a.name.includes('بنك'));
+        
+        const oSel = document.getElementById('targetAcc');
+        subs.forEach(a => oSel.innerHTML += `<option value="${a._id}">${a.name} (${a.code})</option>`);
+    }
+
+    function handlePaymentMethodChange() {
+        const m = document.getElementById('payMethod').value;
+        const sel = document.getElementById('treasuryAcc');
+        sel.innerHTML = '';
+        const list = m === 'Cash' ? safeAccounts : bankAccounts;
+        list.forEach(a => sel.innerHTML += `<option value="${a._id}">${a.name}</option>`);
+        document.getElementById('bankDetails').style.display = m === 'Cash' ? 'none' : 'block';
+    }
+
+    function updateUI() {
+        const type = document.getElementById('type').value;
+        const btn = document.getElementById('saveBtn');
+        if(type === 'Inbound') {
+            document.getElementById('treasuryLabel').innerText = 'إلى: الخزينة (مدين)';
+            document.getElementById('targetLabel').innerText = 'من: (دائن)';
+            btn.className = 'btn-in'; btn.innerText = '📥 حفظ إذن القبض';
+        } else {
+            document.getElementById('treasuryLabel').innerText = 'من: الخزينة (دائن)';
+            document.getElementById('targetLabel').innerText = 'إلى: (مدين)';
+            btn.className = 'btn-out'; btn.innerText = '📤 حفظ إذن الصرف';
+        }
+    }
+
+    async function save() {
+        const data = {
+            type: document.getElementById('type').value,
+            date: document.getElementById('date').value,
+            treasuryAccount: document.getElementById('treasuryAcc').value,
+            targetAccount: document.getElementById('targetAcc').value,
+            amount: document.getElementById('amount').value,
+            paymentMethod: document.getElementById('payMethod').value,
+            description: document.getElementById('desc').value,
+            invoiceId: document.getElementById('invoiceId').value
+        };
+
+        try {
+            const res = await fetch(`${API}/treasury`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+            const json = await res.json();
+            if(res.ok) {
+                if(data.invoiceId && data.type === 'Inbound') {
+                    // فتح الإيصال المخصص بالبيانات الكاملة
+                    // هنا بنمرر السيارة المحفوظة في الحقل المخفي
+                    const cust = document.getElementById('hiddenCustName').value;
+                    const car = document.getElementById('hiddenCarInfo').value;
+                    
+                    const url = `payment_receipt.html?ref=${json.serialNumber}&cust=${encodeURIComponent(cust)}&car=${encodeURIComponent(car)}&amount=${data.amount}&method=${data.paymentMethod}&desc=${encodeURIComponent(data.description)}`;
+                    window.open(url, '_blank');
+                } else {
+                    window.open(`treasury_print.html?id=${json._id}`, '_blank', 'width=800,height=600');
+                }
+
+                if(data.invoiceId) window.location.href = 'sales_list.html';
+                else location.reload();
+            } else { alert('خطأ: ' + json.message); }
+        } catch(e) { alert('خطأ اتصال'); }
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Wrapstyle ERP - الموردين والمشتريات</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        h2 { color: #334155; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-top: 0; }
+        .row { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
+        .col { flex: 1; min-width: 200px; }
+        label { display: block; margin-bottom: 6px; font-weight: 600; color: #475569; font-size: 13px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+        .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; width: 100%; font-size: 14px; }
+        .btn-add { background: #0ea5e9; } .btn-save { background: #10b981; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: right; }
+        th { background: #f8fafc; color: #475569; }
+        .total-row td { font-weight: bold; background: #f0f9ff; border-top: 2px solid #3b82f6; }
+        .alert { padding: 10px; margin-bottom: 15px; border-radius: 5px; text-align: center; font-weight: bold; }
+        .success { background: #d1fae5; color: #065f46; } .error { background: #fecaca; color: #ef4444; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2 style="color:#0ea5e9;">🚚 تكويد الموردين</h2>
+    <div id="msg1" class="alert success" style="display:none"></div>
+    <div class="row">
+        <div class="col"><label>اسم المسئول</label><input id="sName" placeholder="محمد حسن"></div>
+        <div class="col"><label>اسم الشركة</label><input id="sCompany" placeholder="Global Supplies Co."></div>
+        <div class="col"><label>رقم التسجيل الضريبي</label><input id="sTaxId" placeholder="105-001-200"></div>
+    </div>
+    <div class="row">
+        <div class="col"><label>الهاتف</label><input id="sPhone" placeholder="الهاتف"></div>
+        <div class="col"><label>العنوان</label><input id="sAddress" placeholder="المدينة، الشارع"></div>
+    </div>
+    <button class="btn btn-add" onclick="saveSupplier()">حفظ المورد</button>
+    
+    <h3 style="margin-top:30px; border-bottom:1px solid #eee; padding-bottom:10px">قائمة الموردين</h3>
+    <button class="btn btn-refresh" onclick="loadSuppliers()">تحديث</button>
+    <table><thead><tr><th>الاسم</th><th>الضريبي</th><th>الهاتف</th></tr></thead><tbody id="suppTable"></tbody></table>
+</div>
+
+<div class="card">
+    <h2 style="color:#10b981;">💰 فاتورة شراء جديدة (متعددة الأصناف والتكاليف)</h2>
+    <div id="msg2" class="alert success" style="display:none"></div>
+    <div class="row">
+        <div class="col"><label>رقم الفاتورة</label><input id="pInvNum" placeholder="PUR-001"></div>
+        <div class="col"><label>اختر المورد</label><select id="pInvSupplier"><option>تحميل...</option></select></div>
+        <div class="col"><label>نوع المستند</label><select id="pDocType"><option value="Invoice">فاتورة (Invoice)</option><option value="Order">طلب شراء (PO)</option></select></div>
+    </div>
+
+    <h3 style="margin-top:20px">الأصناف المشتراة</h3>
+    <table id="itemTable">
+        <thead><tr><th>الصنف</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th><th>x</th></tr></thead>
+        <tbody></tbody>
+        <tfoot>
+            <tr class="total-row"><td colspan="3" style="text-align:left;">إجمالي الأصناف:</td><td id="subtotalCell">0</td><td></td></tr>
+        </tfoot>
+    </table>
+    <button class="btn-add" style="margin-bottom:10px" onclick="addItemRow()">+ إضافة صنف</button>
+    
+    <h3 style="margin-top:30px">التكاليف الأخرى (نقل، جمارك)</h3>
+    <table id="costTable">
+        <thead><tr><th>البيان</th><th>المبلغ</th><th>x</th></tr></thead>
+        <tbody></tbody>
+        <tfoot>
+            <tr class="total-row"><td style="text-align:left;">الإجمالي الكلي للفاتورة:</td><td id="grandTotalCell">0</td><td></td></tr>
+        </tfoot>
+    </table>
+    <button class="btn-add" onclick="addCostRow()">+ إضافة تكلفة</button>
+
+    <button class="btn-save" style="margin-top:20px" onclick="createPurchaseInvoice()">إصدار الفاتورة</button>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+    let products = [];
+    let currentSubtotal = 0;
+    let currentGrandTotal = 0;
+
+    // Helpers
+    function showMsg(boxId, text, type) {
+        const box = document.getElementById(boxId);
+        box.innerText = text;
+        box.className = 'alert ' + type;
+        box.style.display = 'block';
+        setTimeout(() => box.style.display = 'none', 4000);
+    }
+    async function postData(endpoint, data) {
+        try {
+            const res = await fetch(`${API}/${endpoint}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+            });
+            const json = await res.json();
+            if(res.ok) return { success: true, data: json };
+            else return { success: false, message: json.message || 'فشل في الحفظ' };
+        } catch (e) { 
+            return { success: false, message: 'السيرفر لا يرد أو حدث خطأ داخلي.' }; 
+        }
+    }
+    
+    // --- Purchase Calculation (Core Logic) ---
+    function calculateTotals() {
+        let subtotal = 0;
+        document.querySelectorAll('#itemTable tbody tr').forEach(row => {
+            try {
+                const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
+                const cost = parseFloat(row.querySelector('.cost-input').value) || 0;
+                const lineTotal = qty * cost;
+                row.querySelector('.line-total').innerText = lineTotal.toFixed(2);
+                subtotal += lineTotal;
+            } catch (e) { /* ignore row */ }
+        });
+
+        let extraCosts = 0;
+        document.querySelectorAll('#costTable tbody tr').forEach(row => {
+            try {
+                const amount = parseFloat(row.querySelector('.cost-amount').value) || 0;
+                extraCosts += amount;
+            } catch (e) { /* ignore row */ }
+        });
+
+        currentSubtotal = subtotal;
+        currentGrandTotal = subtotal + extraCosts;
+
+        document.getElementById('subtotalCell').innerText = currentSubtotal.toFixed(2);
+        document.getElementById('grandTotalCell').innerText = currentGrandTotal.toFixed(2);
+    }
+
+    // --- Supplier Management ---
+    async function saveSupplier() {
+        const data = {
+            name: document.getElementById('sName').value,
+            companyName: document.getElementById('sCompany').value,
+            phone: document.getElementById('sPhone').value,
+            taxId: document.getElementById('sTaxId').value,
+            address: document.getElementById('sAddress').value
+        };
+        const result = await postData('suppliers', data);
+        showMsg('msg1', result.success ? 'تم حفظ المورد بنجاح!': result.message, result.success ? 'success' : 'error');
+        loadSuppliers();
+    }
+    
+    async function loadSuppliers() {
+        const res = await fetch(`${API}/suppliers`);
+        const data = await res.json();
+        const table = document.getElementById('suppTable');
+        table.innerHTML = data.map(s => `<tr><td>${s.name}</td><td>${s.companyName}</td><td>${s.taxId||'-'}</td></tr>`).join('');
+        
+        const select = document.getElementById('pInvSupplier');
+        select.innerHTML = data.map(s => `<option value="${s._id}">${s.name} (${s.companyName})</option>`).join('');
+    }
+
+    // --- Dynamic Row Functions ---
+    function getProdOptions() {
+        return products.map(p => `<option value="${p._id}" data-cost="${p.pricing.purchasePrice}">${p.name} (${p.code})</option>`).join('');
+    }
+
+    function addItemRow() {
+        const tbody = document.querySelector('#itemTable tbody');
+        const row = `<tr>
+            <td><select class="prod-select" onchange="updateCost(this)">${getProdOptions()}</select></td>
+            <td><input type="number" class="qty-input" value="1" oninput="calculateTotals()"></td>
+            <td><input type="number" class="cost-input" oninput="calculateTotals()"></td>
+            <td class="line-total">0</td>
+            <td><button style="background:red; border:none; color:white; padding:5px;" onclick="this.parentElement.parentElement.remove(); calculateTotals();">X</button></td>
+        </tr>`;
+        tbody.insertAdjacentHTML('beforeend', row);
+    }
+
+    function addCostRow() {
+        const tbody = document.querySelector('#costTable tbody');
+        const row = `<tr>
+            <td><input placeholder="نقل، جمارك، إلخ."></td>
+            <td><input type="number" class="cost-amount" oninput="calculateTotals()" placeholder="0"></td>
+            <td><button style="background:red; border:none; color:white; padding:5px;" onclick="this.parentElement.parentElement.remove(); calculateTotals();">X</button></td>
+        </tr>`;
+        tbody.insertAdjacentHTML('beforeend', row);
+    }
+
+    function updateCost(select) {
+        const productId = select.value;
+        const product = products.find(p => p._id === productId);
+        const row = select.parentElement.parentElement;
+        row.querySelector('.cost-input').value = product?.pricing?.purchasePrice || 0; 
+        calculateTotals();
+    }
+
+    // --- Purchase Invoice Creation (Final Call) ---
+    async function createPurchaseInvoice() {
+        calculateTotals(); 
+
+        const items = Array.from(document.querySelectorAll('#itemTable tbody tr')).map(row => ({
+            product: row.querySelector('.prod-select').value,
+            quantity: row.querySelector('.qty-input').value,
+            cost: row.querySelector('.cost-input').value,
+            lineTotal: parseFloat(row.querySelector('.line-total').innerText)
+        }));
+
+        const extraCosts = Array.from(document.querySelectorAll('#costTable tbody tr')).map(row => ({
+            description: row.querySelector('input').value,
+            amount: parseFloat(row.querySelector('.cost-amount').value)
+        }));
+
+        const data = {
+            invoiceNumber: document.getElementById('pInvNum').value,
+            supplier: document.getElementById('pInvSupplier').value,
+            documentType: document.getElementById('pDocType').value,
+            items: items,
+            extraCosts: extraCosts,
+            subtotal: currentSubtotal,
+            totalAmount: currentGrandTotal
+        };
+
+        const result = await postData('purchases', data);
+        showMsg('msg2', result.success ? 'تم إصدار فاتورة الشراء بنجاح!': result.message, result.success ? 'success' : 'error');
+    }
+
+    // --- Initial Loaders ---
+    async function loadMasterData() {
+        try {
+            const [prodRes, suppRes] = await Promise.all([
+                fetch(`${API}/products`).then(r => r.json()),
+                fetch(`${API}/suppliers`).then(r => r.json())
+            ]);
+            
+            products = prodRes;
+            
+            document.getElementById('pInvSupplier').innerHTML = suppRes.map(s => `<option value="${s._id}">${s.name} (${s.companyName})</option>`).join('');
+
+            // تحديث الجدول الديناميكي
+            addItemRow(); 
+            addCostRow(); 
+            calculateTotals(); 
+
+        } catch (e) {
+            document.getElementById('msg2').innerText = 'خطأ حرج: تأكد من تشغيل السيرفر ومن وجود بيانات موردين ومنتجات.';
+            document.getElementById('msg2').className = 'alert error';
+            document.getElementById('msg2').style.display = 'block';
+        }
+    }
+
+    // Call init after DOM is fully loaded
+    window.onload = loadMasterData; 
+</script>
+</body>
+</html>

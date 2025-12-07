@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>دليل الأصناف</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 25px; border-radius: 10px; max-width: 1200px; margin: 0 auto; }
+        h2 { color: #1e293b; margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 15px; display: flex; justify-content: space-between; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
+        th { background: #e0f2fe; color: #0369a1; }
+        
+        .btn { padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 13px; color: white; font-weight: bold; border: none; cursor: pointer; }
+        .btn-edit { background: #f59e0b; }
+        .btn-del { background: #ef4444; }
+        .btn-new { background: #10b981; padding: 10px 20px; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>
+        📦 دليل الأصناف
+        <a href="products.html" class="btn btn-new">+ إضافة صنف</a>
+    </h2>
+    
+    <input type="text" id="search" placeholder="بحث بالاسم أو الكود..." onkeyup="filterProducts()" style="padding:10px; width:300px; border:1px solid #ccc; border-radius:5px; margin-bottom:10px;">
+
+    <table>
+        <thead>
+            <tr>
+                <th>الكود</th>
+                <th>الاسم</th>
+                <th>النوع</th>
+                <th>المقاس</th>
+                <th>الرصيد</th>
+                <th>سعر الشراء</th>
+                <th>سعر البيع</th>
+                <th>إجراءات</th>
+            </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+    let allProducts = [];
+
+    async function load() {
+        const res = await fetch(`${API}/products`);
+        allProducts = await res.json();
+        render(allProducts);
+    }
+
+    function render(list) {
+        document.getElementById('tbody').innerHTML = list.map(p => `
+            <tr>
+                <td>${p.code}</td>
+                <td style="font-weight:bold; text-align:right">${p.name}</td>
+                <td>${p.type}</td>
+                <td>${p.dimensions?.length || 0} x ${p.dimensions?.width || 0}</td>
+                <td style="color:${p.currentStock > 0 ? 'green' : 'red'}">${p.currentStock || 0}</td>
+                <td>${p.pricing?.purchasePrice || 0}</td>
+                <td>${p.pricing?.salePrice || 0}</td>
+                <td>
+                    <!-- رابط التعديل: بيبعت ID المنتج -->
+                    <a href="products.html?id=${p._id}" class="btn btn-edit">✏️ تعديل</a>
+                    <button class="btn btn-del" onclick="del('${p._id}')">🗑️ حذف</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function filterProducts() {
+        const term = document.getElementById('search').value.toLowerCase();
+        const filtered = allProducts.filter(p => 
+            p.name.toLowerCase().includes(term) || p.code.toLowerCase().includes(term)
+        );
+        render(filtered);
+    }
+
+    async function del(id) {
+        if(!confirm('حذف الصنف؟')) return;
+        const res = await fetch(`${API}/products/${id}`, { method: 'DELETE' });
+        if(res.ok) { alert('تم الحذف'); load(); } else { alert('فشل الحذف'); }
+    }
+
+    load();
+</script>
+</body>
+</html>

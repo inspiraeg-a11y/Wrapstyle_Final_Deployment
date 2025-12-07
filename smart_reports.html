@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>التقارير المالية</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        h2 { color: #1e293b; margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+        
+        .nav-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 10px; }
+        .btn-nav { 
+            padding: 15px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; 
+            text-align: center; cursor: pointer; font-weight: bold; color: #334155; text-decoration: none; 
+            display: flex; align-items: center; justify-content: center; gap: 10px; transition: 0.2s;
+        }
+        .btn-nav:hover { background: #e0f2fe; border-color: #3b82f6; color: #0369a1; transform: translateY(-2px); }
+        
+        .controls { display: flex; gap: 15px; background: #e0f2fe; padding: 15px; border-radius: 8px; border: 1px solid #bae6fd; align-items: flex-end; flex-wrap: wrap; }
+        .input-group { display: flex; flex-direction: column; flex: 1; min-width: 150px; }
+        .input-group label { font-size: 12px; font-weight: bold; color: #0369a1; margin-bottom: 5px; }
+        select, input { padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
+        
+        .btn { padding: 8px 20px; border: none; cursor: pointer; border-radius: 5px; font-weight: bold; color: white; }
+        .btn-run { background: #0284c7; }
+        .btn-print { background: #333; }
+        .btn-excel { background: #10b981; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
+        th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: center; }
+        th { background: #1e293b; color: white; }
+        tr:nth-child(even) { background: #f8fafc; }
+        
+        .total-row { background: #334155; color: white; font-weight: bold; font-size: 15px; }
+        .opening-row { background: #fff7ed; font-weight: bold; color: #9a3412; }
+        .debit { color: #166534; font-weight: bold; } 
+        .credit { color: #991b1b; font-weight: bold; }
+
+        @media print {
+            .no-print { display: none !important; }
+            .card { border: none; box-shadow: none; margin: 0; padding: 0; }
+            th { background: #ccc !important; color: #000 !important; border: 1px solid #000 !important; }
+            td { border: 1px solid #000 !important; }
+            body { background: white; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    
+    <!-- 1. القوائم السريعة -->
+    <div class="card no-print">
+        <h2>📈 مركز التقارير</h2>
+        <div class="nav-grid">
+            <a href="inventory_status.html" class="btn-nav">📦 المخزن</a>
+            <a href="sales_report.html" class="btn-nav">📊 المبيعات</a>
+            <a href="treasury_report.html" class="btn-nav">💰 السيولة</a>
+            <a href="payroll_report.html" class="btn-nav">💸 الرواتب</a>
+            <a href="job_profitability.html" class="btn-nav">📉 الربحية</a>
+        </div>
+    </div>
+
+    <!-- 2. ميزان المراجعة -->
+    <div class="card">
+        <h2 style="cursor:pointer" onclick="toggleSection('tbSection')">⚖️ ميزان المراجعة (Trial Balance) <span>▼</span></h2>
+        <div id="tbSection">
+            <div class="controls no-print">
+                <div class="input-group">
+                    <label>المستوى</label>
+                    <select id="level"><option value="3">تفصيلي (3)</option><option value="2">رئيسي (2)</option><option value="1">ختامي (1)</option></select>
+                </div>
+                <div class="input-group"><label>من</label><input type="date" id="tbFrom"></div>
+                <div class="input-group"><label>إلى</label><input type="date" id="tbTo"></div>
+                <div class="input-group" style="flex:0"><button class="btn btn-run" onclick="loadTB()">عرض</button></div>
+                <div class="input-group" style="flex:0"><button class="btn btn-print" onclick="window.print()">طباعة</button></div>
+            </div>
+            <table id="tbTable">
+                <thead><tr><th>الكود</th><th>الحساب</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead>
+                <tbody><tr><td colspan="5">اختر المعايير...</td></tr></tbody>
+                <tfoot><tr class="total-row" id="tbFooter" style="display:none"><td colspan="2">الإجمالي</td><td id="totDr">0</td><td id="totCr">0</td><td id="totBal">0</td></tr></tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- 3. دفتر الأستاذ (الجديد) -->
+    <div class="card">
+        <h2 style="cursor:pointer" onclick="toggleSection('glSection')">📒 دفتر الأستاذ العام (General Ledger) <span>▼</span></h2>
+        <div id="glSection">
+            <div class="controls no-print">
+                <div class="input-group" style="flex:2">
+                    <label>اختر الحساب (اسم أو كود)</label>
+                    <select id="glAccount" style="width:100%"><option value="">جاري التحميل...</option></select>
+                </div>
+                <div class="input-group"><label>من</label><input type="date" id="glFrom"></div>
+                <div class="input-group"><label>إلى</label><input type="date" id="glTo"></div>
+                <div class="input-group" style="flex:0"><button class="btn btn-run" onclick="loadGL()">عرض</button></div>
+                <div class="input-group" style="flex:0"><button class="btn btn-excel" onclick="exportGL()">Excel</button></div>
+            </div>
+            
+            <div id="glHeader" style="text-align:center; display:none; margin-bottom:15px;">
+                <h3>حساب: <span id="glName"></span> (<span id="glCode"></span>)</h3>
+                <p>الفترة من <span id="glD1"></span> إلى <span id="glD2"></span></p>
+            </div>
+
+            <table id="glTable">
+                <thead><tr><th>التاريخ</th><th>رقم القيد</th><th>البيان</th><th>البيان الفرعي</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead>
+                <tbody><tr><td colspan="7">اختر حساب...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+    const currentDay = today.toISOString().split('T')[0];
+
+    // تهيئة التواريخ
+    ['tbFrom', 'glFrom'].forEach(id => document.getElementById(id).value = firstDay);
+    ['tbTo', 'glTo'].forEach(id => document.getElementById(id).value = currentDay);
+
+    // تحميل الحسابات للأستاذ
+    window.onload = async () => {
+        try {
+            const res = await fetch(`${API}/accounts`);
+            const accs = await res.json();
+            const sel = document.getElementById('glAccount');
+            sel.innerHTML = '<option value="">-- اختر الحساب --</option>';
+            // عرض الحسابات الفرعية فقط
+            accs.filter(a => a.isTransactional).forEach(a => {
+                sel.innerHTML += `<option value="${a._id}">${a.name} (${a.code})</option>`;
+            });
+        } catch(e) {}
+    };
+
+    function toggleSection(id) {
+        const el = document.getElementById(id);
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+
+    // --- ميزان المراجعة ---
+    async function loadTB() {
+        const level = document.getElementById('level').value;
+        const from = document.getElementById('tbFrom').value;
+        const to = document.getElementById('tbTo').value;
+        
+        try {
+            const res = await fetch(`${API}/reports/trial-balance?level=${level}&fromDate=${from}&toDate=${to}`);
+            const data = await res.json();
+            const tbody = document.querySelector('#tbTable tbody');
+            tbody.innerHTML = '';
+            let sumDr = 0, sumCr = 0;
+
+            data.forEach(r => {
+                const dr = r.debit || 0, cr = r.credit || 0, bal = dr - cr;
+                sumDr += dr; sumCr += cr;
+                tbody.innerHTML += `
+                    <tr style="${r.isTransactional?'':'background:#f1f5f9;font-weight:bold'}">
+                        <td>${r.code}</td><td style="text-align:right">${r.name}</td>
+                        <td class="debit">${dr.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                        <td class="credit">${cr.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                        <td style="font-weight:bold;color:${bal>=0?'green':'red'}">${bal.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                    </tr>`;
+            });
+            document.getElementById('tbFooter').style.display = '';
+            document.getElementById('totDr').innerText = sumDr.toLocaleString(undefined,{minimumFractionDigits:2});
+            document.getElementById('totCr').innerText = sumCr.toLocaleString(undefined,{minimumFractionDigits:2});
+            document.getElementById('totBal').innerText = (sumDr-sumCr).toLocaleString(undefined,{minimumFractionDigits:2});
+        } catch(e) { alert('خطأ تحميل'); }
+    }
+
+    // --- دفتر الأستاذ ---
+    async function loadGL() {
+        const accId = document.getElementById('glAccount').value;
+        const from = document.getElementById('glFrom').value;
+        const to = document.getElementById('glTo').value;
+        if(!accId) return alert('اختر الحساب');
+
+        try {
+            const res = await fetch(`${API}/reports/general-ledger?accountId=${accId}&fromDate=${from}&toDate=${to}`);
+            const data = await res.json();
+            
+            document.getElementById('glHeader').style.display = 'block';
+            document.getElementById('glName').innerText = data.accountName;
+            document.getElementById('glCode').innerText = data.accountCode;
+            document.getElementById('glD1').innerText = from;
+            document.getElementById('glD2').innerText = to;
+
+            const tbody = document.querySelector('#glTable tbody');
+            tbody.innerHTML = `
+                <tr class="opening-row">
+                    <td colspan="4">الرصيد الافتتاحي (ما قبل الفترة)</td>
+                    <td>-</td><td>-</td>
+                    <td>${data.openingBalance.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                </tr>
+            `;
+
+            if(data.transactions.length === 0) {
+                tbody.innerHTML += '<tr><td colspan="7">لا توجد حركات</td></tr>';
+            } else {
+                data.transactions.forEach(t => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${new Date(t.date).toLocaleDateString('ar-EG')}</td>
+                            <td>${t.ref}</td>
+                            <td>${t.desc}</td>
+                            <td>${t.lineDesc || '-'}</td>
+                            <td class="debit">${t.debit>0 ? t.debit.toLocaleString() : '-'}</td>
+                            <td class="credit">${t.credit>0 ? t.credit.toLocaleString() : '-'}</td>
+                            <td style="font-weight:bold">${t.balance.toLocaleString()}</td>
+                        </tr>
+                    `;
+                });
+            }
+            // رصيد ختامي
+            tbody.innerHTML += `<tr class="total-row"><td colspan="6" style="text-align:left">الرصيد النهائي:</td><td>${data.finalBalance.toLocaleString()}</td></tr>`;
+
+        } catch(e) { alert('خطأ تحميل الأستاذ'); }
+    }
+
+    // تصدير إكسيل بسيط (CSV)
+    function exportGL() {
+        const table = document.getElementById('glTable');
+        let csv = [];
+        for(let row of table.rows) {
+            let cols = [];
+            for(let cell of row.cells) cols.push('"' + cell.innerText + '"');
+            csv.push(cols.join(","));
+        }
+        const blob = new Blob(["\uFEFF"+csv.join("\n")], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "General_Ledger.csv";
+        link.click();
+    }
+</script>
+</body>
+</html>

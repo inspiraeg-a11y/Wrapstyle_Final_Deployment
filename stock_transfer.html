@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تحويل بين المخازن</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #fffbeb; }
+        .card { background: white; padding: 30px; border-radius: 10px; max-width: 900px; margin: 0 auto; border-top: 5px solid #f59e0b; }
+        h2 { text-align: center; color: #333; }
+        
+        .row { display: flex; gap: 15px; margin-bottom: 15px; }
+        .col { flex: 1; }
+        label { font-weight: bold; font-size: 13px; display: block; margin-bottom: 5px; }
+        select, input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { background: #fef3c7; padding: 10px; }
+        td { border: 1px solid #eee; padding: 5px; text-align: center; }
+        
+        .btn { padding: 10px 20px; border: none; cursor: pointer; font-weight: bold; color: white; border-radius: 5px; width: 100%; margin-top: 20px; }
+        .btn-save { background: #d97706; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h2>🔄 إذن تحويل مخزني</h2>
+    
+    <div class="row">
+        <div class="col">
+            <label>من مخزن (المصدر)</label>
+            <select id="fromWh"><option value="">تحميل...</option></select>
+        </div>
+        <div class="col">
+            <label>إلى مخزن (الوجهة)</label>
+            <select id="toWh"><option value="">تحميل...</option></select>
+        </div>
+        <div class="col"><label>التاريخ</label><input type="date" id="date"></div>
+    </div>
+    
+    <table id="tbl">
+        <thead><tr><th>الصنف</th><th>كود الرول</th><th>الطول</th><th>العرض</th><th>المساحة</th><th>x</th></tr></thead>
+        <tbody></tbody>
+    </table>
+    <button onclick="addRow()" style="margin-top:10px; width:auto; background:#3b82f6; color:white; padding:5px 10px; border:none; cursor:pointer">+ إضافة صنف</button>
+    
+    <button class="btn btn-save" onclick="save()">تنفيذ التحويل</button>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+    let products = [];
+    document.getElementById('date').valueAsDate = new Date();
+
+    window.onload = async () => {
+        // تحميل المخازن
+        const whRes = await fetch(`${API}/warehouses/transactional`);
+        const warehouses = await whRes.json();
+        const opts = '<option value="">-- اختر --</option>' + warehouses.map(w => `<option value="${w._id}">${w.path}</option>`).join('');
+        document.getElementById('fromWh').innerHTML = opts;
+        document.getElementById('toWh').innerHTML = opts;
+
+        // تحميل المنتجات
+        const prodRes = await fetch(`${API}/products`);
+        products = await prodRes.json();
+        addRow();
+    };
+
+    function addRow() {
+        const tbody = document.querySelector('tbody');
+        const opts = products.map(p => `<option value="${p._id}">${p.name}</option>`).join('');
+        
+        const row = `<tr>
+            <td><select class="prod" style="width:100%"><option value="">اختر</option>${opts}</select></td>
+            <td><input class="roll" placeholder="كود الرول"></td>
+            <td><input type="number" class="len" oninput="calc(this)"></td>
+            <td><input type="number" class="wid" oninput="calc(this)"></td>
+            <td><input class="area" readonly></td>
+            <td style="cursor:pointer;color:red" onclick="this.parentElement.remove()">x</td>
+        </tr>`;
+        tbody.insertAdjacentHTML('beforeend', row);
+    }
+
+    function calc(input) {
+        const tr = input.closest('tr');
+        const l = parseFloat(tr.querySelector('.len').value)||0;
+        const w = parseFloat(tr.querySelector('.wid').value)||0;
+        tr.querySelector('.area').value = l * w;
+    }
+
+    async function save() {
+        const from = document.getElementById('fromWh').value;
+        const to = document.getElementById('toWh').value;
+        
+        if(!from || !to) { alert('اختر المخازن'); return; }
+        if(from === to) { alert('لا يمكن التحويل لنفس المخزن'); return; }
+
+        const items = Array.from(document.querySelectorAll('tbody tr')).map(tr => ({
+            product: tr.querySelector('.prod').value,
+            rollCode: tr.querySelector('.roll').value,
+            length: parseFloat(tr.querySelector('.len').value),
+            width: parseFloat(tr.querySelector('.wid').value),
+            area: parseFloat(tr.querySelector('.area').value)
+        }));
+
+        if(items.length === 0) { alert('أضف أصناف'); return; }
+
+        const data = {
+            fromWarehouse: from,
+            toWarehouse: to,
+            date: document.getElementById('date').value,
+            items: items
+        };
+
+        try {
+            const res = await fetch(`${API}/stock/transfer`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+            const json = await res.json();
+            if(res.ok) { alert('تم التحويل بنجاح ✅'); location.reload(); }
+            else { alert('خطأ: ' + json.message); }
+        } catch(e) { alert('خطأ اتصال'); }
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>سجل المبيعات</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 25px; border-radius: 10px; max-width: 1200px; margin: 0 auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size:14px; }
+        th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
+        th { background: #e0f2fe; color: #0369a1; }
+        .btn { padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; color: white; margin: 0 2px; font-size:12px; }
+        .btn-edit { background: #f59e0b; }
+        .btn-del { background: #ef4444; }
+        .btn-pay { background: #10b981; font-weight: bold; } /* زرار السداد */
+        .btn-new { background: #10b981; padding: 10px 20px; text-decoration: none; display: inline-block; font-weight: bold; }
+        .paid-badge { background: #dcfce7; color: #166534; padding: 3px 8px; border-radius: 10px; font-size: 11px; }
+        .unpaid-badge { background: #fee2e2; color: #991b1b; padding: 3px 8px; border-radius: 10px; font-size: 11px; }
+        .btn-print { background: #333; } /* زرار الطباعة */
+    </style>
+</head>
+<body>
+<div class="card">
+    <h2 style="display:flex; justify-content:space-between">
+        📋 سجل فواتير المبيعات
+        <a href="sales_invoice.html" class="btn-new">+ فاتورة جديدة</a>
+    </h2>
+    <table>
+        <thead><tr><th>رقم الفاتورة</th><th>التاريخ</th><th>العميل</th><th>الإجمالي</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+<script>
+    const API = 'http://localhost:5000/api';
+    
+    async function load() {
+        try {
+            const res = await fetch(`${API}/sales`);
+            if (!res.ok) throw new Error('فشل تحميل البيانات');
+            const data = await res.json();
+            
+            if (!data || data.length === 0) {
+                document.getElementById('tbody').innerHTML = '<tr><td colspan="6" style="padding:20px;color:#666;">لا توجد فواتير مسجلة</td></tr>';
+                return;
+            }
+
+            document.getElementById('tbody').innerHTML = data.map(i => {
+                const isPaid = i.paymentStatus === 'Paid' || (i.paidAmount >= i.finalTotal);
+                
+                // رابط السداد: بيبعت الـ ID والمبلغ ورقم الفاتورة وحساب العميل لشاشة الخزنة
+                const custId = i.customer?.accountId || '';
+                const custName = encodeURIComponent(i.customer?.name || '');
+                const carInfo = encodeURIComponent(i.carModel ? `${i.carModel.brand} ${i.carModel.model}` : '-');
+                const payLink = `treasury.html?invoiceId=${i._id}&invNum=${i.invoiceNumber}&amount=${i.finalTotal}&type=Inbound&custId=${custId}&custName=${custName}&carInfo=${carInfo}`;
+                
+                return `
+                <tr>
+                    <td>${i.invoiceNumber}</td>
+                    <td>${new Date(i.date).toLocaleDateString('ar-EG')}</td>
+                    <td>${i.customer?.name || '-'}</td>
+                    <td style="font-weight:bold; color:green">${parseFloat(i.finalTotal).toLocaleString()}</td>
+                    <td><span class="${isPaid?'paid-badge':'unpaid-badge'}">${isPaid?'مدفوع':'غير مدفوع'}</span></td>
+                    <td>
+                        ${!isPaid ? `<button class="btn btn-pay" onclick="location.href='${payLink}'">💰 سداد</button>` : ''}
+                        <button class="btn btn-edit" onclick="location.href='sales_invoice.html?id=${i._id}'">✏️</button>
+                        <button class="btn btn-print" onclick="printInvoice('${i._id}')">🖨️</button>
+                        <button class="btn btn-del" onclick="del('${i._id}')">🗑️</button>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        } catch(e) { alert('خطأ: ' + e.message); }
+    }
+
+    async function del(id) {
+        if(!confirm('هل أنت متأكد من الحذف؟ سيتم إلغاء القيد وعكس المخزن.')) return;
+        try {
+            const res = await fetch(`${API}/sales/${id}`, { method: 'DELETE' });
+            if(res.ok) { alert('تم الحذف وتصحيح الأوضاع ✅'); load(); }
+            else { 
+                const err = await res.json();
+                alert('فشل الحذف: ' + err.message); 
+            }
+        } catch(e) { alert('خطأ اتصال'); }
+    }
+
+    function printInvoice(id) {
+        // يمكن هنا فتح صفحة طباعة مخصصة للفاتورة إذا وجدت، أو طباعة الشاشة الحالية
+        // سنفترض وجود صفحة طباعة للفاتورة كما هو معتاد في الأنظمة
+        // window.open(`invoice_print.html?id=${id}`, '_blank', 'width=800,height=600');
+        alert('خاصية طباعة الفاتورة قيد التطوير، يمكنك استخدام زرار التعديل لرؤية التفاصيل وطباعتها من هناك.');
+    }
+
+    load();
+</script>
+</body>
+</html>

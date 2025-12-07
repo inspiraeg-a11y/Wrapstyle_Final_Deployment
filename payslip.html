@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>فيشة راتب</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 30px; background: #555; }
+        .slip { background: white; border: 2px solid #000; padding: 30px; max-width: 750px; margin: 0 auto; }
+        h2 { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+        
+        .header-info { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; border-bottom: 1px dashed #000; padding-bottom: 15px; margin-bottom: 20px; }
+        .info-row { font-size: 14px; font-weight: bold; }
+        .info-row span { color: #333; font-weight: normal; }
+
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; }
+        th, td { border: 1px solid #000; padding: 8px; text-align: center; }
+        th { background: #eee; }
+        
+        .vac-box { background: #f9f9f9; border: 1px solid #ccc; padding: 10px; margin-bottom: 20px; font-size: 13px; }
+        .net-box { text-align: center; font-size: 24px; font-weight: bold; border: 2px solid #000; padding: 10px; margin: 20px 0; background: #eef; }
+        
+        @media print { button, body { background: white; padding: 0; } .no-print { display: none; } }
+    </style>
+</head>
+<body>
+<div class="slip">
+    <h2>بيان صرف راتب (Pay Slip)</h2>
+    
+    <div class="header-info">
+        <div class="info-row">الاسم: <span id="name"></span></div>
+        <div class="info-row">الكود: <span id="code"></span></div>
+        <div class="info-row">الوظيفة: <span id="job"></span></div>
+        <div class="info-row">تاريخ التعيين: <span id="hire"></span></div>
+        <div class="info-row">الشهر: <span id="month"></span></div>
+        <div class="info-row">تاريخ الطباعة: <span id="printDate"></span></div>
+    </div>
+
+    <!-- ملخص الإجازات -->
+    <div class="vac-box">
+        <strong>رصيد الإجازات السنوي:</strong> <span id="vb">0</span> يوم <br>
+        <strong>المستهلك هذا الشهر:</strong> 
+        ( <span id="va">0</span> اعتيادي + <span id="vs">0</span> مرضي + <span id="vabs">0</span> غياب ) 
+        = <strong><span id="vTotal">0</span> يوم</strong> <br>
+        <strong>المتبقي من الرصيد:</strong> <span id="vRem">0</span> يوم
+    </div>
+
+    <table>
+        <thead>
+            <tr><th colspan="2">الاستحقاقات (+)</th><th colspan="3">الاستقطاعات (-)</th></tr>
+            <tr><th>البند</th><th>القيمة</th><th>البند</th><th>أيام</th><th>قيمة</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>الراتب الشامل</td><td id="basic">0.00</td>
+                <td>غياب (بدون أجر)</td><td id="absD">0</td><td id="absV">0.00</td>
+            </tr>
+            <tr>
+                <td></td><td></td>
+                <td>جزاءات</td><td id="penD">0</td><td id="penV">0.00</td>
+            </tr>
+            <tr>
+                <td></td><td></td>
+                <td>تأخيرات</td><td id="lateD">0</td><td id="lateV">0.00</td>
+            </tr>
+            <tr>
+                <td></td><td></td>
+                <td>سلف شهرية</td><td colspan="2" id="loanM">0.00</td>
+            </tr>
+            <tr>
+                <td></td><td></td>
+                <td>سلف مستديمة</td><td colspan="2" id="loanP">0.00</td>
+            </tr>
+            <tr style="background:#f9f9f9; font-weight:bold">
+                <td>إجمالي المستحق</td><td id="totalA">0.00</td>
+                <td colspan="2">إجمالي الخصم</td><td id="totalD">0.00</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="net-box">الصافي: <span id="net"></span> جنيه مصري</div>
+
+    <div style="display:flex; justify-content:space-between; margin-top:40px">
+        <div>مدير الحسابات</div>
+        <div>الموارد البشرية</div>
+        <div>توقيع المستلم</div>
+    </div>
+</div>
+<div class="no-print" style="text-align:center; margin-top:20px"><button onclick="window.print()">🖨️ طباعة</button></div>
+
+<script>
+    const p = new URLSearchParams(window.location.search);
+    
+    document.getElementById('printDate').innerText = new Date().toLocaleDateString('ar-EG');
+    
+    // البيانات الشخصية
+    document.getElementById('name').innerText = p.get('name');
+    document.getElementById('code').innerText = p.get('code');
+    document.getElementById('job').innerText = p.get('job');
+    document.getElementById('hire').innerText = p.get('hire');
+    document.getElementById('month').innerText = p.get('month');
+
+    // القيم المالية (تنسيق رقمين)
+    document.getElementById('basic').innerText = parseFloat(p.get('basic')).toFixed(2);
+    document.getElementById('totalA').innerText = parseFloat(p.get('basic')).toFixed(2);
+    document.getElementById('net').innerText = parseFloat(p.get('net')).toFixed(2);
+    document.getElementById('totalD').innerText = parseFloat(p.get('deduct')).toFixed(2);
+
+    // تفاصيل الخصم
+    document.getElementById('absD').innerText = p.get('absD'); 
+    document.getElementById('absV').innerText = parseFloat(p.get('absV')).toFixed(2);
+    
+    document.getElementById('penD').innerText = p.get('penD'); 
+    document.getElementById('penV').innerText = parseFloat(p.get('penV')).toFixed(2);
+    
+    document.getElementById('lateD').innerText = p.get('lateD'); 
+    document.getElementById('lateV').innerText = parseFloat(p.get('lateV')).toFixed(2);
+    
+    document.getElementById('loanM').innerText = parseFloat(p.get('loanM')).toFixed(2);
+    document.getElementById('loanP').innerText = parseFloat(p.get('loanP')).toFixed(2);
+
+    // حسابات الإجازات
+    const bal = parseFloat(p.get('bal')) || 0;
+    const ann = parseFloat(p.get('ann')) || 0;
+    const sick = parseFloat(p.get('sick')) || 0;
+    const absDays = parseFloat(p.get('absD')) || 0;
+
+    document.getElementById('vb').innerText = bal;
+    document.getElementById('va').innerText = ann;
+    document.getElementById('vs').innerText = sick;
+    document.getElementById('vabs').innerText = absDays;
+    
+    document.getElementById('vTotal').innerText = ann + sick + absDays;
+    document.getElementById('vRem').innerText = bal - ann; // المتبقي من السنوي
+</script>
+</body>
+</html>

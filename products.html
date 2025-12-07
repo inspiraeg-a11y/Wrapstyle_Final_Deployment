@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تكويد صنف</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 30px; max-width: 900px; margin: 0 auto; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        h2 { color: #3b82f6; margin-top: 0; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; }
+        .row { display: flex; gap: 15px; margin-bottom: 15px; }
+        .col { flex: 1; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 13px; color: #475569; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+        .box-title { background: #e0f2fe; padding: 8px; border-radius: 5px; color: #0369a1; font-weight: bold; margin: 20px 0 10px; }
+        .readonly { background-color: #f3f4f6; font-weight: bold; color: #555; pointer-events: none; }
+        .btn { padding: 12px; width: 100%; background: #3b82f6; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2 id="pageTitle">📦 تكويد صنف جديد</h2>
+    <input type="hidden" id="editId">
+    
+    <div class="row">
+        <div class="col"><label>كود المنتج</label><input id="code" placeholder="P-001"></div>
+        <div class="col"><label>اسم المنتج</label><input id="name"></div>
+        <div class="col"><label>النوع</label><input id="type" list="types"><datalist id="types"><option value="PPF"><option value="Vinyl"></datalist></div>
+        <div class="col"><label>الوحدة</label><input id="unit" value="ROLL"></div>
+    </div>
+
+    <div class="box-title">الأبعاد (سم)</div>
+    <div class="row">
+        <div class="col"><label>الطول</label><input type="number" id="len" oninput="calc()"></div>
+        <div class="col"><label>العرض</label><input type="number" id="wid" oninput="calc()"></div>
+        <div class="col"><label>المساحة</label><input id="area" class="readonly" readonly></div>
+    </div>
+
+    <div class="box-title">التسعير</div>
+    <div class="row">
+        <div class="col"><label>سعر الشراء</label><input type="number" id="buy" oninput="calc()"></div>
+        <div class="col"><label>ت. الوحدة</label><input id="uCost" class="readonly" readonly></div>
+        <div class="col"><label>سعر البيع</label><input type="number" id="sell" oninput="calc()"></div>
+        <div class="col"><label>س.ب الوحدة</label><input id="uSell" class="readonly" readonly></div>
+    </div>
+
+    <div class="box-title">الربط المحاسبي (الإيرادات والتكلفة)</div>
+    <div class="row">
+        <!-- شلنا حساب المخزن من هنا لأنه بقى مربوط بالمخزن الفعلي -->
+        <div class="col"><label>حـ/ تكلفة المبيعات</label><select id="accCogs"><option value="">-- اختر --</option></select></div>
+        <div class="col"><label>حـ/ إيرادات المبيعات</label><select id="accSales"><option value="">-- اختر --</option></select></div>
+    </div>
+
+    <button class="btn" id="saveBtn" onclick="save()">حفظ الصنف</button>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+
+    window.onload = async () => {
+        await loadAccounts();
+        const id = new URLSearchParams(window.location.search).get('id');
+        if (id) loadForEdit(id);
+    };
+
+    async function loadAccounts() {
+        try {
+            const res = await fetch(`${API}/accounts`);
+            const accs = await res.json();
+            const cogs = document.getElementById('accCogs');
+            const sales = document.getElementById('accSales');
+            
+            accs.filter(a => a.isTransactional).forEach(a => {
+                const opt = `<option value="${a._id}">${a.name} (${a.code})</option>`;
+                cogs.innerHTML += opt;
+                sales.innerHTML += opt;
+            });
+        } catch(e) {}
+    }
+
+    async function loadForEdit(id) {
+        try {
+            document.getElementById('pageTitle').innerText = '✏️ تعديل بيانات صنف';
+            document.getElementById('saveBtn').innerText = 'تحديث البيانات';
+            document.getElementById('saveBtn').style.background = '#f59e0b';
+            document.getElementById('editId').value = id;
+
+            const res = await fetch(`${API}/products/${id}`);
+            const p = await res.json();
+            
+            if (p) {
+                document.getElementById('code').value = p.code;
+                document.getElementById('name').value = p.name;
+                document.getElementById('type').value = p.type;
+                document.getElementById('unit').value = p.unit;
+                
+                document.getElementById('len').value = p.dimensions?.length || 0;
+                document.getElementById('wid').value = p.dimensions?.width || 0;
+                document.getElementById('area').value = p.dimensions?.area || 0;
+
+                document.getElementById('buy').value = p.pricing?.purchasePrice || 0;
+                document.getElementById('sell').value = p.pricing?.salePrice || 0;
+                
+                if(p.accounting) {
+                    document.getElementById('accCogs').value = p.accounting.cogsAccount || '';
+                    document.getElementById('accSales').value = p.accounting.salesAccount || '';
+                }
+                
+                calc(); 
+            }
+        } catch(e) { alert('فشل تحميل الصنف'); }
+    }
+
+    function calc() {
+        const l = parseFloat(document.getElementById('len').value)||0;
+        const w = parseFloat(document.getElementById('wid').value)||0;
+        const area = l * w;
+        document.getElementById('area').value = area;
+
+        const buy = parseFloat(document.getElementById('buy').value)||0;
+        const sell = parseFloat(document.getElementById('sell').value)||0;
+        
+        if(area > 0) {
+            document.getElementById('uCost').value = (buy / area).toFixed(5);
+            document.getElementById('uSell').value = (sell / area).toFixed(5);
+        }
+    }
+
+    async function save() {
+        const id = document.getElementById('editId').value;
+        const method = id ? 'PUT' : 'POST';
+        const url = id ? `${API}/products/${id}` : `${API}/products`;
+
+        const data = {
+            code: document.getElementById('code').value,
+            name: document.getElementById('name').value,
+            type: document.getElementById('type').value,
+            unit: document.getElementById('unit').value,
+            dimensions: {
+                length: parseFloat(document.getElementById('len').value),
+                width: parseFloat(document.getElementById('wid').value)
+            },
+            pricing: {
+                purchasePrice: parseFloat(document.getElementById('buy').value),
+                salePrice: parseFloat(document.getElementById('sell').value)
+            },
+            accounting: {
+                // المخزن خلاص اتشال من هنا
+                cogsAccount: document.getElementById('accCogs').value || null,
+                salesAccount: document.getElementById('accSales').value || null
+            }
+        };
+
+        if(!data.code || !data.name) { alert('البيانات ناقصة'); return; }
+
+        try {
+            const res = await fetch(url, { method: method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+            if(res.ok) { 
+                alert(id ? 'تم التحديث' : 'تم الحفظ'); 
+                if(id) window.location.href = 'products_list.html';
+                else location.reload();
+            } else {
+                const j = await res.json();
+                alert('خطأ: ' + j.message);
+            }
+        } catch(e) { alert('خطأ اتصال'); }
+    }
+</script>
+</body>
+</html>

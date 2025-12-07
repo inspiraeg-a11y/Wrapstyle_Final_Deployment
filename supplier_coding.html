@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تكويد الموردين</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f8fafc; }
+        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); max-width: 900px; margin: 0 auto; }
+        h2 { color: #0ea5e9; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; margin-top: 0; }
+        .row { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
+        .col { flex: 1; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 13px; color: #475569; }
+        input { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 5px; box-sizing: border-box; }
+        .btn { background: #0ea5e9; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+        th, td { padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right; }
+        th { background: #f1f5f9; color: #475569; }
+        #msg { text-align:center; margin-top:10px; font-weight:bold; display:none; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>🚚 إدارة بيانات الموردين</h2>
+    <p id="msg"></p>
+    
+    <div class="row">
+        <div class="col"><label>اسم المسئول</label><input id="sName" placeholder="مثال: أ/ محمد حسن"></div>
+        <div class="col"><label>اسم الشركة</label><input id="sCompany" placeholder="مثال: Global Supplies Co."></div>
+        <div class="col"><label>رقم التسجيل الضريبي</label><input id="sTaxId" placeholder="xxx-xxx-xxx"></div>
+    </div>
+    
+    <div class="row">
+        <div class="col"><label>الهاتف</label><input id="sPhone" placeholder="01xxxxxxxxx"></div>
+        <div class="col"><label>العنوان</label><input id="sAddress" placeholder="المدينة - الشارع - رقم المبنى"></div>
+    </div>
+
+    <button class="btn" onclick="saveSupplier()">حفظ بيانات المورد</button>
+    
+    <h3 style="margin-top:30px; color:#334155;">قائمة الموردين المسجلين</h3>
+    <button onclick="loadSuppliers()" style="background:#64748b; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">🔄 تحديث</button>
+    <table>
+        <thead><tr><th>م</th><th>الاسم</th><th>الشركة</th><th>الهاتف</th><th>الضريبي</th><th>العنوان</th></tr></thead>
+        <tbody id="suppTable"></tbody>
+    </table>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+
+    function showMsg(text, color) {
+        const m = document.getElementById('msg');
+        m.innerText = text; m.style.color = color; m.style.display = 'block';
+        setTimeout(() => m.style.display = 'none', 4000);
+    }
+
+    async function postData(endpoint, data) {
+        const res = await fetch(`${API}/${endpoint}`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        return res.ok;
+    }
+
+    async function saveSupplier() {
+        const data = {
+            name: document.getElementById('sName').value,
+            companyName: document.getElementById('sCompany').value,
+            phone: document.getElementById('sPhone').value,
+            taxId: document.getElementById('sTaxId').value,
+            address: document.getElementById('sAddress').value
+        };
+
+        if(!data.name || !data.phone) { showMsg('الاسم والهاتف مطلوبين!', 'red'); return; }
+
+        try {
+            const result = await postData('suppliers', data);
+            if (result) {
+                showMsg('تم الحفظ بنجاح! ✅', 'green');
+                loadSuppliers();
+            } else {
+                showMsg('خطأ: فشل الحفظ أو تكرار في البيانات.', 'red');
+            }
+        } catch(e) { 
+            showMsg('تأكد من تشغيل السيرفر!', 'red'); 
+        }
+    }
+
+    async function loadSuppliers() {
+        try {
+            const res = await fetch(`${API}/suppliers`);
+            const data = await res.json();
+            const tbody = document.getElementById('suppTable');
+            tbody.innerHTML = '';
+            data.forEach((s, index) => {
+                tbody.innerHTML += `<tr>
+                    <td>${index + 1}</td>
+                    <td>${s.name}</td>
+                    <td>${s.companyName}</td>
+                    <td>${s.phone}</td>
+                    <td>${s.taxId || '-'}</td>
+                    <td>${s.address || '-'}</td>
+                </tr>`;
+            });
+        } catch(e) { 
+            showMsg('فشل تحميل الموردين: السيرفر لا يرد.', 'red'); 
+            console.error(e);
+        }
+    }
+
+    // NEW: Ensure functions run only after the page content is fully loaded.
+    window.onload = function() {
+        loadSuppliers(); 
+    };
+</script>
+</body>
+</html>

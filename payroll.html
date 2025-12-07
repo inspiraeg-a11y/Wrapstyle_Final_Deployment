@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>مسير الرواتب</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 20px; max-width: 100%; margin: 0 auto; border-radius: 10px; overflow-x: auto; }
+        
+        /* تنسيق الفلاتر */
+        .filters { background: #e0f2fe; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; border: 1px solid #bae6fd; }
+        .filters label { font-weight: bold; color: #0369a1; margin-left: 5px; }
+        .filters select, .filters input { padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
+        
+        table { width: 100%; border-collapse: collapse; font-size:11px; }
+        th, td { border: 1px solid #ccc; padding: 5px; text-align: center; vertical-align: middle; }
+        th { background: #1e293b; color: white; padding: 8px; white-space: nowrap; }
+        
+        input { width: 45px; text-align: center; border: 1px solid #ddd; padding: 4px; }
+        .days-input { background-color: #fffbeb; } 
+        .val-input { background-color: #fef2f2; color: #b91c1c; font-weight: bold; border: none; } 
+        .money-static { background: #f1f5f9; border: none; font-weight: bold; width: 60px; }
+        .net-cell { background: #064e3b; color: #fff; font-size: 13px; width: 70px; border: none; }
+
+        .btn { padding: 8px 20px; border: none; cursor: pointer; font-weight: bold; color: white; border-radius: 4px; }
+        .btn-calc { background: #3b82f6; }
+        .btn-save { background: #10b981; width: 100%; margin-top: 20px; font-size: 16px; padding: 12px; }
+        .btn-print-all { background: #475569; width: 100%; margin-top: 10px; font-size: 16px; padding: 12px; }
+        .btn-slip { background: #64748b; font-size:10px; text-decoration:none; display:inline-block; padding: 4px 8px; }
+        
+        .view-mode input { background: transparent !important; border: none !important; color: #333 !important; pointer-events: none; }
+        
+        #archiveBanner { display: none; text-align: center; background: #ffedd5; padding: 10px; margin-bottom: 15px; border: 1px solid #fdba74; color: #9a3412; font-weight: bold; border-radius: 5px; }
+
+        @media print {
+            .no-print, .filters, .btn, button { display: none !important; }
+            .card { border: none; padding: 0; overflow: visible; box-shadow: none; max-width: 100%; }
+            h2 { border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+            th { background: #ccc !important; color: #000 !important; border: 1px solid #000 !important; }
+            td { border: 1px solid #000 !important; }
+            input { border: none !important; text-align: center; background: transparent !important; }
+            th:last-child, td:last-child { display: none; }
+            body { background: white; }
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h2 style="text-align:center; margin-top:0; color:#333">💰 مسير رواتب الموظفين</h2>
+    
+    <div id="archiveBanner" class="no-print">
+        👁️ أنت تشاهد أرشيف شهر <span id="archMonth"></span>
+        <a href="payroll.html" style="margin-right:15px; color:red; text-decoration:underline;">العودة للصرف الجديد</a>
+    </div>
+    
+    <div class="filters no-print" id="filterSection">
+        <div>
+            <label>شهر الصرف:</label> 
+            <input type="month" id="month">
+        </div>
+        <div>
+            <label>القسم/الإدارة:</label>
+            <select id="filterDept"><option value="">الكل</option></select>
+        </div>
+        <div>
+            <label>الوظيفة:</label>
+            <select id="filterJob"><option value="">الكل</option></select>
+        </div>
+        <button class="btn btn-calc" onclick="loadEmployees()">📥 تحميل الموظفين</button>
+    </div>
+
+    <table id="payrollTable">
+        <thead>
+            <tr>
+                <!-- 👇 العمود الجديد -->
+                <th rowspan="2">الكود</th> 
+                <th rowspan="2" width="150">الموظف</th>
+                <th rowspan="2" width="70">الراتب</th>
+                <th colspan="2">إجازات</th>
+                <th colspan="2">غياب</th>
+                <th colspan="2">جزاءات</th>
+                <th colspan="2">تأخيرات</th>
+                <th colspan="2">سلف</th>
+                <th rowspan="2">الخصومات</th>
+                <th rowspan="2">الصافي</th>
+                <th rowspan="2" class="no-print">فيشة</th>
+            </tr>
+            <tr>
+                <th title="مرضي">م</th><th title="اعتيادي (يخصم رصيد)">ع</th>
+                <th>يوم</th><th>قيمة</th>
+                <th>يوم</th><th>قيمة</th>
+                <th>يوم</th><th>قيمة</th>
+                <th>شهرية</th><th>مستديمة</th>
+            </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+        <tfoot>
+            <tr>
+                <td colspan="14" style="text-align:left;font-weight:bold;font-size:14px">الإجمالي المستحق صرفه:</td>
+                <td id="grandTotal" style="font-weight:bold;font-size:16px;color:green;background:#fff">0.00</td>
+                <td class="no-print"></td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <div id="actionBtns" class="no-print">
+        <button class="btn btn-save" onclick="savePayroll()">💾 اعتماد وصرف الرواتب وترحيل القيود</button>
+    </div>
+    
+    <div class="no-print">
+        <button class="btn btn-print-all" onclick="window.print()">🖨️ طباعة كشف الرواتب (المسير الكامل)</button>
+    </div>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api/hr';
+    let allEmployees = []; 
+    
+    window.onload = async () => {
+        const params = new URLSearchParams(window.location.search);
+        const viewMonth = params.get('viewMonth');
+
+        if (viewMonth) {
+            loadArchivedPayroll(viewMonth);
+        } else {
+            const res = await fetch(`${API}/employees`);
+            allEmployees = await res.json();
+            
+            const depts = [...new Set(allEmployees.map(e => e.department).filter(d => d))];
+            const jobs = [...new Set(allEmployees.map(e => e.jobTitle).filter(j => j))];
+            
+            depts.forEach(d => document.getElementById('filterDept').innerHTML += `<option value="${d}">${d}</option>`);
+            jobs.forEach(j => document.getElementById('filterJob').innerHTML += `<option value="${j}">${j}</option>`);
+        }
+    };
+
+    async function loadArchivedPayroll(month) {
+        document.getElementById('filterSection').style.display = 'none';
+        document.getElementById('actionBtns').style.display = 'none';
+        document.getElementById('archiveBanner').style.display = 'block';
+        document.getElementById('archMonth').innerText = month;
+        document.getElementById('month').value = month;
+
+        try {
+            const res = await fetch(`${API}/payroll?month=${month}`);
+            const data = await res.json();
+            if (data.length === 0) { 
+                document.getElementById('tbody').innerHTML = '<tr><td colspan="16">لا توجد بيانات محفوظة</td></tr>';
+                return; 
+            }
+            const payroll = data[0];
+            const tbody = document.getElementById('tbody');
+            tbody.classList.add('view-mode');
+            tbody.innerHTML = '';
+
+            payroll.details.forEach(d => {
+                const tr = document.createElement('tr');
+                tr.setAttribute('data-code', d.employeeCode || '-');
+                tr.innerHTML = `
+                    <td style="font-weight:bold; color:#555">${d.employeeCode || '-'}</td>
+                    <td style="text-align:right; font-weight:bold">${d.employeeName}</td>
+                    <td><input class="total-sal money-static" value="${d.totalSalary}" readonly></td>
+                    <td><input type="number" class="sick days-input" value="${d.sickLeaveDays}" readonly></td>
+                    <td><input type="number" class="annual days-input" value="${d.annualLeaveDays}" readonly></td>
+                    <td><input type="number" class="abs-days days-input" value="${d.absenceDays}" readonly></td>
+                    <td><input class="abs-val val-input" value="${d.absenceValue}" readonly></td>
+                    <td><input type="number" class="pen-days days-input" value="${d.penaltyDays}" readonly></td>
+                    <td><input class="pen-val val-input" value="${d.penaltyValue}" readonly></td>
+                    <td><input type="number" class="late-days days-input" value="${d.latenessDays}" readonly></td>
+                    <td><input class="late-val val-input" value="${d.latenessValue}" readonly></td>
+                    <td><input type="number" class="loan-m" value="${d.monthlyLoan}" readonly></td>
+                    <td><input type="number" class="loan-p" value="${d.permanentLoan}" readonly></td>
+                    <td><input class="total-deduct" value="${d.totalDeductions}" readonly style="color:red; font-weight:bold; width:60px; border:none"></td>
+                    <td><input class="net-salary net-cell" value="${d.netSalary}" readonly style="font-weight:bold;color:green"></td>
+                    <td class="no-print">
+                        <button onclick="printSlip(this, '${encodeURIComponent(d.employeeName)}')" class="btn btn-slip">🖨️</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            document.getElementById('grandTotal').innerText = payroll.totalAmount.toLocaleString();
+        } catch(e) { alert('خطأ في تحميل الأرشيف'); }
+    }
+    
+    async function loadEmployees() {
+        if(!document.getElementById('month').value) { alert('اختر شهر الصرف أولاً!'); return; }
+        const deptFilter = document.getElementById('filterDept').value;
+        const jobFilter = document.getElementById('filterJob').value;
+
+        let filteredList = allEmployees.filter(e => {
+            return (!deptFilter || e.department === deptFilter) && (!jobFilter || e.jobTitle === jobFilter);
+        });
+        filteredList.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+
+        const tbody = document.getElementById('tbody');
+        tbody.innerHTML = '';
+        if(filteredList.length === 0) { tbody.innerHTML = '<tr><td colspan="16">لا يوجد موظفين مطابقين</td></tr>'; return; }
+
+        filteredList.forEach(emp => {
+            const salary = emp.totalSalary || 0;
+            const dayRate = salary / 30;
+            const vacBal = emp.vacationBalance || 0;
+
+            const tr = document.createElement('tr');
+            tr.setAttribute('data-id', emp._id);
+            tr.setAttribute('data-dayrate', dayRate);
+            tr.setAttribute('data-vacbal', vacBal);
+            tr.setAttribute('data-code', emp.code || '-');
+
+            tr.innerHTML = `
+                <td style="font-weight:bold; color:#555">${emp.code || '-'}</td> <!-- الكود هنا -->
+                <td style="text-align:right; font-weight:bold">${emp.name}</td>
+                <td><input class="total-sal money-static" value="${salary}" readonly></td>
+                <td><input type="number" class="sick days-input" value="0"></td>
+                <td><input type="number" class="annual days-input" value="0" title="الرصيد الحالي: ${vacBal}"></td>
+                <td><input type="number" class="abs-days days-input" value="0" oninput="calc(this)"></td>
+                <td><input class="abs-val val-input" value="0" readonly></td>
+                <td><input type="number" class="pen-days days-input" value="0" oninput="calc(this)"></td>
+                <td><input class="pen-val val-input" value="0" readonly></td>
+                <td><input type="number" class="late-days days-input" value="0" oninput="calc(this)"></td>
+                <td><input class="late-val val-input" value="0" readonly></td>
+                <td><input type="number" class="loan-m" value="0" oninput="calc(this)"></td>
+                <td><input type="number" class="loan-p" value="0" oninput="calc(this)"></td>
+                <td><input class="total-deduct" value="0" readonly style="color:red; font-weight:bold; width:60px; border:none"></td>
+                <td><input class="net-salary net-cell" value="${salary}" readonly></td>
+                <td class="no-print">
+                    <button onclick="printSlip(this, '${encodeURIComponent(emp.name)}')" class="btn btn-slip">🖨️</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        calcGrandTotal();
+    }
+
+    function calc(input) {
+        if(document.querySelector('tbody').classList.contains('view-mode')) return;
+        const tr = input.closest('tr');
+        const salary = parseFloat(tr.querySelector('.total-sal').value);
+        const dayRate = parseFloat(tr.getAttribute('data-dayrate'));
+        
+        const absVal = Math.ceil((parseFloat(tr.querySelector('.abs-days').value)||0) * dayRate);
+        const penVal = Math.ceil((parseFloat(tr.querySelector('.pen-days').value)||0) * dayRate);
+        const lateVal = Math.ceil((parseFloat(tr.querySelector('.late-days').value)||0) * dayRate);
+        
+        tr.querySelector('.abs-val').value = absVal;
+        tr.querySelector('.pen-val').value = penVal;
+        tr.querySelector('.late-val').value = lateVal;
+
+        const loans = (parseFloat(tr.querySelector('.loan-m').value)||0) + (parseFloat(tr.querySelector('.loan-p').value)||0);
+        const totalDeduct = absVal + penVal + lateVal + loans;
+        const net = salary - totalDeduct;
+        
+        tr.querySelector('.total-deduct').value = totalDeduct;
+        tr.querySelector('.net-salary').value = Math.floor(net);
+        calcGrandTotal();
+    }
+
+    function calcGrandTotal() {
+        let total = 0;
+        document.querySelectorAll('.net-salary').forEach(i => total += parseFloat(i.value)||0);
+        document.getElementById('grandTotal').innerText = total.toLocaleString();
+    }
+
+    function printSlip(btn, name) {
+        const tr = btn.closest('tr');
+        const month = document.getElementById('month').value || document.getElementById('archMonth').innerText;
+        const basic = tr.querySelector('.total-sal').value;
+        const net = tr.querySelector('.net-salary').value;
+        const totalDed = tr.querySelector('.total-deduct').value;
+        const code = tr.getAttribute('data-code'); // الكود للطباعة
+        
+        // ... باقي المتغيرات
+        const absD = tr.querySelector('.abs-days').value || 0;
+        const absV = tr.querySelector('.abs-val').value || 0;
+        const penD = tr.querySelector('.pen-days').value || 0;
+        const penV = tr.querySelector('.pen-val').value || 0;
+        const lateD = tr.querySelector('.late-days').value || 0;
+        const lateV = tr.querySelector('.late-val').value || 0;
+        const loanM = tr.querySelector('.loan-m').value || 0;
+        const loanP = tr.querySelector('.loan-p').value || 0;
+        const sick = tr.querySelector('.sick').value || 0;
+        const annual = tr.querySelector('.annual').value || 0;
+        const vacBal = tr.getAttribute('data-vacbal') || 0;
+
+        const url = `payslip.html?name=${name}&code=${code}&month=${month}&basic=${basic}&net=${net}&deduct=${totalDed}` + 
+                    `&absD=${absD}&absV=${absV}&penD=${penD}&penV=${penV}&lateD=${lateD}&lateV=${lateV}` + 
+                    `&loanM=${loanM}&loanP=${loanP}&sick=${sick}&ann=${annual}&bal=${vacBal}`;
+        window.open(url, '_blank', 'width=800,height=600');
+    }
+
+    async function savePayroll() {
+        const details = [];
+        document.querySelectorAll('tbody tr').forEach(tr => {
+            details.push({
+                employee: tr.getAttribute('data-id'),
+                employeeCode: tr.cells[0].innerText, // حفظ الكود
+                employeeName: tr.cells[1].innerText,
+                totalSalary: parseFloat(tr.querySelector('.total-sal').value),
+                annualLeaveDays: parseFloat(tr.querySelector('.annual').value),
+                sickLeaveDays: parseFloat(tr.querySelector('.sick').value),
+                absenceDays: parseFloat(tr.querySelector('.abs-days').value),
+                absenceValue: parseFloat(tr.querySelector('.abs-val').value),
+                penaltyDays: parseFloat(tr.querySelector('.pen-days').value),
+                penaltyValue: parseFloat(tr.querySelector('.pen-val').value),
+                latenessDays: parseFloat(tr.querySelector('.late-days').value),
+                latenessValue: parseFloat(tr.querySelector('.late-val').value),
+                monthlyLoan: parseFloat(tr.querySelector('.loan-m').value),
+                permanentLoan: parseFloat(tr.querySelector('.loan-p').value),
+                totalDeductions: parseFloat(tr.querySelector('.total-deduct').value),
+                netSalary: parseFloat(tr.querySelector('.net-salary').value)
+            });
+        });
+
+        const data = {
+            month: document.getElementById('month').value,
+            details: details,
+            totalAmount: parseFloat(document.getElementById('grandTotal').innerText.replace(/[^0-9.-]+/g,""))
+        };
+        
+        if(!data.month) { alert('اختر الشهر'); return; }
+        if(data.totalAmount <= 0) { alert('لا يوجد مبالغ للصرف'); return; }
+
+        try {
+            const res = await fetch(`${API}/payroll`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+            if(res.ok) { alert('تم الصرف والحفظ ✅'); window.location.href = 'payroll_report.html'; }
+            else { const j = await res.json(); alert('خطأ: ' + j.message); }
+        } catch(e) { alert('خطأ اتصال'); }
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تكويد السيارات</title>
+    <style>
+        /* نفس التنسيق الأصلي */
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 25px; border-radius: 10px; max-width: 900px; margin: 0 auto; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        h2 { color: #5a67d8; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-top: 0; }
+        
+        .row { display: flex; gap: 15px; margin-bottom: 15px; }
+        .col { flex: 1; }
+        label { display: block; margin-bottom: 6px; font-weight: 600; color: #475569; font-size: 13px; }
+        input { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
+        th, td { padding: 10px; border: 1px solid #e2e8f0; text-align: center; }
+        th { background: #f8fafc; color: #475569; }
+        
+        .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; color: white; font-weight: bold; }
+        .btn-add { background: #3b82f6; width: auto; }
+        .btn-save { background: #5a67d8; width: 100%; margin-top: 20px; }
+        .btn-del { background: #ef4444; padding: 5px 10px; }
+        
+        #msg { text-align:center; padding:10px; margin-bottom:15px; border-radius:4px; display:none; font-weight:bold;}
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>➕ تكويد موديل سيارة (للقص)</h2>
+    <div id="msg"></div>
+    
+    <div class="row">
+        <div class="col"><label>كود الموديل</label><input id="carCode" placeholder="CAR-001 (تلقائي لو فارغ)"></div>
+        <div class="col"><label>الماركة</label><input id="carBrand" placeholder="مثال: مرسيدس"></div>
+        <div class="col"><label>الموديل</label><input id="carModel" placeholder="مثال: C180"></div>
+        <div class="col"><label>سنة الصنع</label><input id="carYear" placeholder="2024" type="number"></div>
+    </div>
+
+    <h3>قطع السيارة والمقاسات القياسية</h3>
+    <table id="partsTable">
+        <thead>
+            <tr>
+                <th width="30%">اسم القطعة</th>
+                <th width="20%">الطول (سم)</th>
+                <th width="20%">العرض (سم)</th>
+                <th width="20%">المساحة (تلقائي)</th>
+                <th width="10%">حذف</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <button class="btn btn-add" onclick="addPartRow()">+ إضافة قطعة</button>
+
+    <button class="btn btn-save" onclick="saveCar()">حفظ موديل السيارة بالكامل</button>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+
+    function addPartRow() {
+        const tbody = document.querySelector('#partsTable tbody');
+        const row = `<tr>
+            <td><input placeholder="كبوت / سقف / رفرف"></td>
+            <td><input type="number" class="len-input" oninput="calcArea(this)" placeholder="0"></td>
+            <td><input type="number" class="wid-input" oninput="calcArea(this)" placeholder="0"></td>
+            <td><input class="area-output" readonly placeholder="0"></td>
+            <td><button class="btn btn-del" onclick="this.closest('tr').remove()">X</button></td>
+        </tr>`;
+        tbody.insertAdjacentHTML('beforeend', row);
+    }
+
+    function calcArea(input) {
+        const tr = input.closest('tr');
+        const len = parseFloat(tr.querySelector('.len-input').value) || 0;
+        const wid = parseFloat(tr.querySelector('.wid-input').value) || 0;
+        tr.querySelector('.area-output').value = (len * wid).toFixed(2);
+    }
+
+    async function saveCar() {
+        let carCode = document.getElementById('carCode').value.trim();
+        const carBrand = document.getElementById('carBrand').value.trim();
+        const carModel = document.getElementById('carModel').value.trim();
+        const carYear = document.getElementById('carYear').value;
+
+        if (!carBrand || !carModel) {
+            showMsg('الرجاء إدخال الماركة والموديل.', 'red');
+            return;
+        }
+
+        if (!carCode) {
+            carCode = 'CAR-' + Math.floor(Date.now() / 1000);
+        }
+
+        // تجميع الأجزاء
+        const parts = Array.from(document.querySelectorAll('#partsTable tbody tr')).map(tr => ({
+            name: tr.querySelector('td:nth-child(1) input').value,
+            lengthCM: parseFloat(tr.querySelector('.len-input').value) || 0,
+            widthCM: parseFloat(tr.querySelector('.wid-input').value) || 0,
+            areaCM2: parseFloat(tr.querySelector('.area-output').value) || 0
+        })).filter(p => p.name);
+
+        // التعديل هنا: استخدام الأسماء (code, brand, model) لتطابق السيرفر
+        const data = {
+            code: carCode,
+            brand: carBrand,
+            model: carModel, // هنا كان مكتوب modelName وده سبب المشكلة
+            year: carYear,
+            parts: parts
+        };
+
+        try {
+            const res = await fetch(`${API}/cars`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+            });
+            const json = await res.json();
+            
+            if (res.ok) {
+                showMsg('تم حفظ موديل السيارة بنجاح! ✅', 'green');
+                // تفريغ الحقول
+                document.getElementById('carCode').value = '';
+                document.getElementById('carBrand').value = '';
+                document.getElementById('carModel').value = '';
+                document.querySelector('#partsTable tbody').innerHTML = '';
+                addPartRow();
+            } else {
+                showMsg('خطأ: ' + (json.message || 'فشل الحفظ'), 'red');
+            }
+        } catch(e) { showMsg('خطأ: السيرفر لا يرد.', 'red'); }
+    }
+
+    function showMsg(text, color) {
+        const msg = document.getElementById('msg');
+        msg.innerText = text;
+        msg.style.color = color === 'green' ? '#155724' : '#721c24';
+        msg.style.background = color === 'green' ? '#d4edda' : '#f8d7da';
+        msg.style.display = 'block';
+        setTimeout(() => msg.style.display = 'none', 4000);
+    }
+
+    window.onload = function() {
+        document.getElementById('carYear').value = new Date().getFullYear();
+        addPartRow();
+    };
+</script>
+</body>
+</html>

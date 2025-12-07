@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Payment Receipt</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 40px; background: #fff; color: #000; max-width: 800px; margin: 0 auto; font-size: 14px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 1px; }
+        .header p { margin: 2px 0; font-size: 12px; }
+        
+        .meta { display: flex; justify-content: space-between; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+        .title { text-align: center; font-size: 22px; font-weight: bold; text-decoration: underline; margin: 20px 0; }
+        
+        .box { border: 1px solid #000; padding: 10px; margin-bottom: 15px; display: flex; }
+        .box-label { width: 150px; font-weight: bold; border-right: 1px solid #000; margin-right: 15px; display: flex; align-items: center; }
+        .box-content { flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 15px; }
+        
+        .checkbox-item { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+        .checkbox-box { width: 14px; height: 14px; border: 1px solid #000; display: inline-block; position: relative; }
+        /* علامة صح عند التفعيل */
+        .checkbox-box.checked::after {
+            content: '✔'; font-size: 12px; position: absolute; top: -3px; left: 1px; font-weight: bold;
+        }
+
+        .service-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+        .service-group { margin-bottom: 10px; }
+        .service-title { font-weight: bold; text-decoration: underline; display: block; margin-bottom: 5px; }
+
+        .footer { margin-top: 40px; border-top: 2px solid #000; padding-top: 20px; font-size: 11px; line-height: 1.6; }
+        .footer ul { padding-left: 20px; margin: 0; }
+        
+        .signatures { display: flex; justify-content: space-between; margin-top: 40px; font-weight: bold; }
+        
+        @media print {
+            .no-print { display: none; }
+            body { padding: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print" style="margin-bottom: 20px; text-align: right;">
+        <button onclick="window.print()" style="padding: 10px 20px; background: #000; color: #fff; border: none; cursor: pointer; font-weight: bold;">🖨️ Print Receipt</button>
+    </div>
+
+    <div class="header">
+        <h1>WrapStyle Cairo – Empyrean Enterprises</h1>
+        <p>Cloud Nine Mall, Mohamed Naguib Axis, New Cairo, Cairo, Egypt</p>
+        <p>+2012 00 999 333</p>
+    </div>
+
+    <div class="meta">
+        <span id="date"></span>
+        <span id="time"></span>
+    </div>
+
+    <div class="title">Payment Receipt</div>
+
+    <div class="box">
+        <div class="box-label">Transaction #</div>
+        <div class="box-content" id="transNo" style="font-size: 18px; font-weight: bold;"></div>
+    </div>
+
+    <div class="box">
+        <div class="box-label">Payment Method</div>
+        <div class="box-content">
+            <div class="checkbox-item"><div class="checkbox-box" id="chk_Cash"></div> Cash</div>
+            <div class="checkbox-item"><div class="checkbox-box" id="chk_POS"></div> Credit Card</div>
+            <div class="checkbox-item"><div class="checkbox-box" id="chk_BankTransfer"></div> Bank Transfer</div>
+            <div class="checkbox-item"><div class="checkbox-box" id="chk_Check"></div> Cheque</div>
+        </div>
+    </div>
+
+    <div class="box">
+        <div class="box-label">Customer Name</div>
+        <div class="box-content" id="custName" style="font-weight:bold; font-size: 16px;"></div>
+    </div>
+
+    <div class="box">
+        <div class="box-label">Car Make & Model</div>
+        <div class="box-content" id="carModel" style="font-weight:bold;"></div>
+    </div>
+
+    <div class="box">
+        <div class="box-label">Amount Paid</div>
+        <div class="box-content" id="amount" style="font-weight:bold; font-size:16px"></div>
+    </div>
+
+    <div class="box">
+        <div class="box-label">Service</div>
+        <div class="box-content service-grid">
+            <div class="service-group">
+                <span class="service-title">Paint Protection Film</span>
+                <div class="checkbox-item" onclick="toggleCheck(this)"><div class="checkbox-box"></div> Partial</div>
+                <div class="checkbox-item" onclick="toggleCheck(this)"><div class="checkbox-box"></div> Full Wrap Excluding Roof</div>
+                <div class="checkbox-item" onclick="toggleCheck(this)"><div class="checkbox-box"></div> Full Wrap Including Roof</div>
+            </div>
+            <div class="service-group">
+                <span class="service-title">Thermal Insulation Window Film</span>
+                <div class="checkbox-item" onclick="toggleCheck(this)"><div class="checkbox-box"></div> Partial</div>
+                <div class="checkbox-item" onclick="toggleCheck(this)"><div class="checkbox-box"></div> Full</div>
+            </div>
+            <div class="service-group">
+                <span class="service-title">Vinyl Color Wrap</span>
+                <div class="checkbox-item" onclick="toggleCheck(this)"><div class="checkbox-box"></div> Partial</div>
+                <div class="checkbox-item" onclick="toggleCheck(this)"><div class="checkbox-box"></div> Full</div>
+            </div>
+            <div class="service-group">
+                <div class="checkbox-item" onclick="toggleCheck(this)"><div class="checkbox-box"></div> Windshield Protection</div>
+                <div class="checkbox-item" onclick="toggleCheck(this)"><div class="checkbox-box"></div> Car Screen Protection</div>
+                <div class="checkbox-item" onclick="toggleCheck(this)"><div class="checkbox-box"></div> Other: <span id="otherService" contenteditable="true" style="border-bottom:1px dotted #000; min-width:100px; margin-left:5px;"></span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="signatures">
+        <div>Issued by: <span id="user">Admin</span></div>
+        <div>Received by: __________________</div>
+    </div>
+
+    <div class="footer">
+        <strong>Reminder</strong>
+        <ul>
+            <li>Schedule a visual inspection within 7 days of installation. Complimentary inspections are recommended every 6 months.</li>
+            <li>If you notice any problems or defects, contact the WrapStyle customer service team immediately.</li>
+            <li>Do not wash your wrapped vehicle for 3–5 days & do not wash or roll down tinted windows for 48 hours post installation.</li>
+            <li>Bubbles may appear & will usually disappear within 1-2 months. Do not puncture, press, or try to fix the bubbles yourself.</li>
+            <li>Avoid high-pressure water jets, as they can damage the film.</li>
+            <li>For hand washing, use soft microfiber towels only. Replace each towel monthly and use it for one vehicle only.</li>
+            <li>Polishing: Do not use polishing machines — they cause color loss and scratches.</li>
+            <li>Do not wipe or scrub the film in direct sunlight or while it’s warm.</li>
+            <li>Use only WrapStyle-approved cleaning materials. Unapproved products can cause discoloration or permanent damage.</li>
+        </ul>
+        <br>
+        <div style="text-align: right; font-weight: bold; font-style: italic;">Regards,<br>The WrapStyle Team</div>
+    </div>
+
+<script>
+    const p = new URLSearchParams(window.location.search);
+    const date = new Date();
+    
+    document.getElementById('date').innerText = date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    document.getElementById('time').innerText = date.toLocaleTimeString('en-US');
+    
+    // تعبئة البيانات من الرابط
+    document.getElementById('transNo').innerText = p.get('ref') || '-';
+    document.getElementById('custName').innerText = p.get('cust') || '-';
+    document.getElementById('carModel').innerText = p.get('car') || '-';
+    document.getElementById('amount').innerText = parseFloat(p.get('amount')).toLocaleString() + ' EGP';
+    
+    // طريقة الدفع (تلقائي)
+    const method = p.get('method'); 
+    if(method) {
+        const chk = document.getElementById('chk_' + method);
+        if(chk) chk.classList.add('checked');
+    }
+
+    // خاصية التعليم اليدوي
+    function toggleCheck(el) {
+        const box = el.querySelector('.checkbox-box');
+        box.classList.toggle('checked');
+    }
+</script>
+</body>
+</html>

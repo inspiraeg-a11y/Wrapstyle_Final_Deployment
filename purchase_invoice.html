@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>فاتورة مشتريات</title>
+    <!-- مكتبة SheetJS -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f8fafc; padding: 20px; }
+        .card { background: white; padding: 25px; border-radius: 10px; max-width: 1200px; margin: 0 auto; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        h2 { color: #1e293b; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-top: 0; display: flex; justify-content: space-between; align-items: center; }
+        
+        .row { display: flex; gap: 15px; margin-bottom: 15px; }
+        .col { flex: 1; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 13px; color: #475569; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 5px; box-sizing: border-box; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { background: #1e293b; color: white; padding: 10px; font-size: 13px; text-align: center; }
+        td { padding: 5px; border-bottom: 1px solid #eee; }
+        td input, td select { width: 100%; border: 1px solid #ddd; padding: 8px; border-radius: 4px; text-align: center; font-size: 13px; }
+        .readonly-input { background-color: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; font-weight: bold; }
+        
+        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; display: inline-flex; align-items: center; gap: 5px; text-decoration: none; font-size: 14px; }
+        .btn-add { background: #3b82f6; margin-top: 10px; font-size: 12px; }
+        .btn-save { background: #10b981; width: 100%; margin-top: 20px; font-size: 16px; padding: 15px; justify-content: center; }
+        .btn-del { background: #ef4444; padding: 5px 10px; font-size: 12px; }
+        .btn-list { background: #64748b; }
+        .btn-print { background: #333; }
+        .btn-excel { background: #16a34a; }
+        .btn-import { background: #f59e0b; }
+
+        .toolbar { display: flex; gap: 10px; }
+        
+        .tax-box { background: #fff7ed; padding: 15px; border-radius: 8px; border: 1px solid #f97316; margin-top: 20px; width: 400px; float: left; }
+        .tax-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 600; }
+        .tax-row input { width: 80px; padding: 5px; text-align: center; }
+        .final-row { border-top: 2px solid #f97316; padding-top: 10px; margin-top: 10px; font-size: 18px; color: #c2410c; }
+        
+        #msg { display: none; padding: 15px; margin-bottom: 15px; border-radius: 5px; text-align: center; font-weight: bold; }
+        
+        @media print {
+            .no-print, .btn, .toolbar { display: none !important; }
+            .card { border: none; box-shadow: none; width: 100%; max-width: 100%; padding: 0; }
+            input, select { border: none; background: transparent; padding: 0; }
+            h2 { border-bottom: 2px solid #000; }
+            th { background: #ccc !important; color: #000 !important; }
+            .tax-box { border: 2px solid #000; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>
+        📑 فاتورة مشتريات (وارد)
+        <div class="toolbar no-print">
+            <button class="btn btn-excel" onclick="exportToExcel()">📤 تصدير Excel</button>
+            <button class="btn btn-import" onclick="document.getElementById('excelFile').click()">📥 استيراد Excel</button>
+            <input type="file" id="excelFile" accept=".xlsx, .xls" style="display:none" onchange="importFromExcel(this)">
+            <button class="btn btn-print" onclick="window.print()">🖨️ طباعة</button>
+            <a href="purchase_list.html" class="btn btn-list">📋 السجل</a>
+        </div>
+    </h2>
+    <div id="msg"></div>
+    <input type="hidden" id="editId">
+
+    <div class="row">
+        <div class="col">
+            <label>رقم الفاتورة (للمورد)</label>
+            <!-- 👇 متاح للكتابة اليدوية 👇 -->
+            <input id="invNum" placeholder="أدخل رقم فاتورة المورد" style="color:#d97706; font-weight:bold;">
+        </div>
+        <div class="col"><label>المورد</label><select id="supplier"><option value="">-- اختر المورد --</option></select></div>
+        <div class="col"><label>التاريخ</label><input type="date" id="date"></div>
+    </div>
+
+    <table id="itemsTable">
+        <thead>
+            <tr>
+                <th width="35%">الصنف (الخامة)</th>
+                <th width="15%">الكمية (متر/قطعة)</th>
+                <th width="20%">سعر الوحدة (Cost)</th>
+                <th width="20%">الإجمالي</th>
+                <th width="10%" class="no-print">x</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <button class="btn btn-add no-print" onclick="addEmptyRow()">+ إضافة صنف</button>
+
+    <div style="clear:both"></div>
+
+    <div class="tax-box">
+        <div class="tax-row">
+            <span>إجمالي الأصناف:</span> <span id="subtotal">0.00</span>
+        </div>
+        <div class="tax-row">
+            <span>+ مصاريف إضافية (نقل/شحن):</span> <input type="number" id="extraCost" value="0" oninput="calcTotal()">
+        </div>
+        <div class="tax-row">
+            <span>+ ض.ق.م (14%):</span> <input type="number" id="taxVal" value="0" oninput="calcTotal()">
+        </div>
+        <div class="tax-row">
+            <span>- ض.خصم (1%):</span> <input type="number" id="whtVal" value="0" oninput="calcTotal()">
+        </div>
+        <div class="tax-row">
+            <span>- خصم مكتسب:</span> <input type="number" id="discount" value="0" oninput="calcTotal()">
+        </div>
+        <div class="tax-row final-row">
+            <span>الصافي (المستحق للمورد):</span> <span id="finalTotal">0.00</span>
+        </div>
+    </div>
+
+    <div style="clear:both"></div>
+    <button class="btn btn-save no-print" onclick="saveInvoice()">💾 حفظ الفاتورة</button>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+    let products = [];
+
+    window.onload = async () => {
+        document.getElementById('date').valueAsDate = new Date();
+        await loadData();
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const id = urlParams.get('id');
+        if(id) loadForEdit(id);
+    };
+
+    async function loadData() {
+        try {
+            const [pRes, sRes] = await Promise.all([fetch(`${API}/products`), fetch(`${API}/suppliers`)]);
+            products = await pRes.json();
+            const suppliers = await sRes.json();
+
+            const supSel = document.getElementById('supplier');
+            suppliers.forEach(s => supSel.innerHTML += `<option value="${s._id}">${s.name}</option>`);
+        } catch(e) { alert('فشل تحميل البيانات'); }
+    }
+
+    function createRow(d = {}) {
+        const tbody = document.querySelector('tbody');
+        let opts = '<option value="">اختر الصنف</option>';
+        products.forEach(p => opts += `<option value="${p._id}" data-cost="${p.pricing?.purchasePrice||0}" ${d.product===p._id?'selected':''}>${p.name}</option>`);
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><select class="prod" onchange="updPrice(this)">${opts}</select></td>
+            <td><input type="number" class="qty" value="${d.quantity||1}" oninput="calcRow(this)"></td>
+            <td><input type="number" class="cost" value="${d.cost||0}" oninput="calcRow(this)"></td>
+            <td><input type="number" class="row-total" value="${d.lineTotal||0}" readonly style="font-weight:bold; color:#d97706; background:#fff7ed"></td>
+            <td class="no-print"><button class="btn-del" onclick="this.closest('tr').remove();calcTotal()">X</button></td>
+        `;
+        tbody.appendChild(tr);
+        if(d.product) calcRow(tr.querySelector('.qty')); // تحديث الحسابات
+    }
+
+    function addEmptyRow() { createRow(); }
+
+    function updPrice(el) {
+        const row = el.closest('tr');
+        // هنا ممكن نجيب آخر سعر شراء محفوظ لو حابب، بس هنسيبه 0 عشان يدخله من الفاتورة
+        // const cost = parseFloat(el.options[el.selectedIndex].getAttribute('data-cost')) || 0;
+        // row.querySelector('.cost').value = cost;
+        calcRow(el);
+    }
+
+    function calcRow(el) {
+        const row = el.closest('tr');
+        const qty = parseFloat(row.querySelector('.qty').value) || 0;
+        const cost = parseFloat(row.querySelector('.cost').value) || 0;
+        row.querySelector('.row-total').value = (qty * cost).toFixed(2);
+        calcTotal();
+    }
+
+    function calcTotal() {
+        let sub = 0;
+        document.querySelectorAll('.row-total').forEach(i => sub += parseFloat(i.value)||0);
+        document.getElementById('subtotal').innerText = sub.toFixed(2);
+
+        const extra = parseFloat(document.getElementById('extraCost').value)||0;
+        const tax = parseFloat(document.getElementById('taxVal').value)||0; // ضريبة قيمة مضافة (يدوي هنا لأنها مش دايماً 14%)
+        const wht = parseFloat(document.getElementById('whtVal').value)||0;
+        const disc = parseFloat(document.getElementById('discount').value)||0;
+
+        // المعادلة: (أصناف + مصاريف + ضريبة) - (خصم منبع + خصم مكتسب)
+        const final = (sub + extra + tax) - (wht + disc);
+        document.getElementById('finalTotal').innerText = final.toFixed(2);
+    }
+
+    async function saveInvoice() {
+        const items = [];
+        document.querySelectorAll('tbody tr').forEach(tr => {
+            if(tr.querySelector('.prod').value) {
+                items.push({
+                    product: tr.querySelector('.prod').value,
+                    quantity: tr.querySelector('.qty').value,
+                    cost: tr.querySelector('.cost').value,
+                    lineTotal: tr.querySelector('.row-total').value
+                });
+            }
+        });
+
+        if(items.length === 0) { alert('أضف صنف واحد على الأقل'); return; }
+
+        const id = document.getElementById('editId').value;
+        const method = id ? 'PUT' : 'POST';
+        const url = id ? `${API}/purchases/${id}` : `${API}/purchases`;
+
+        // قراءة رقم الفاتورة اليدوي أو توليد تلقائي
+        const manualInvNum = document.getElementById('invNum').value.trim();
+
+        const data = {
+            invoiceNumber: manualInvNum || (id ? undefined : 'PUR-'+Date.now()),
+            date: document.getElementById('date').value,
+            supplier: document.getElementById('supplier').value,
+            items: items,
+            subtotal: parseFloat(document.getElementById('subtotal').innerText),
+            totalExtraCosts: parseFloat(document.getElementById('extraCost').value)||0,
+            totalTax: parseFloat(document.getElementById('taxVal').value)||0,
+            whtAmount: parseFloat(document.getElementById('whtVal').value)||0,
+            totalDiscount: parseFloat(document.getElementById('discount').value)||0,
+            totalAmount: parseFloat(document.getElementById('finalTotal').innerText) // الصافي
+        };
+
+        if(!data.supplier) { alert('اختر المورد'); return; }
+
+        try {
+            const res = await fetch(url, { method: method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+            const json = await res.json();
+            if(res.ok) { 
+                const msg = document.getElementById('msg');
+                msg.innerText = '✅ تم الحفظ وتحديث التكلفة'; 
+                msg.style.display='block'; 
+                msg.style.background='#dcfce7';
+                msg.style.color='#166534';
+                setTimeout(() => window.location.href = 'purchase_list.html', 1500); 
+            } else { alert('خطأ: ' + json.message); }
+        } catch(e) { alert('خطأ اتصال'); }
+    }
+
+    // --- وظائف الإكسيل ---
+    function exportToExcel() {
+        const supplier = document.getElementById('supplier').options[document.getElementById('supplier').selectedIndex].text;
+        const date = document.getElementById('date').value;
+        const invNum = document.getElementById('invNum').value || "جديد";
+        
+        let data = [];
+        data.push(["فاتورة مشتريات"]);
+        data.push(["رقم الفاتورة", invNum]);
+        data.push(["المورد", supplier]);
+        data.push(["التاريخ", date]);
+        data.push([]); 
+
+        data.push(["الصنف", "الكمية", "سعر الوحدة", "الإجمالي"]);
+
+        document.querySelectorAll('tbody tr').forEach(tr => {
+            const prodSelect = tr.querySelector('.prod');
+            const prodName = prodSelect.options[prodSelect.selectedIndex]?.text || '';
+            data.push([
+                prodName,
+                tr.querySelector('.qty').value,
+                tr.querySelector('.cost').value,
+                tr.querySelector('.row-total').value
+            ]);
+        });
+
+        data.push([]);
+        data.push(["الإجمالي", document.getElementById('subtotal').innerText]);
+        data.push(["مصاريف إضافية", document.getElementById('extraCost').value]);
+        data.push(["ضريبة ق.م", document.getElementById('taxVal').value]);
+        data.push(["ضريبة خصم", document.getElementById('whtVal').value]);
+        data.push(["خصم مكتسب", document.getElementById('discount').value]);
+        data.push(["الصافي المستحق", document.getElementById('finalTotal').innerText]);
+
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Purchase_Invoice");
+        XLSX.writeFile(wb, `Purchase_${supplier}_${date}.xlsx`);
+    }
+
+    function importFromExcel(input) {
+        const file = input.files[0];
+        if(!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
+
+            // قراءة الترويسة (نتوقع نفس تنسيق التصدير)
+            if(jsonData[1] && jsonData[1][1]) document.getElementById('invNum').value = jsonData[1][1];
+            if(jsonData[2] && jsonData[2][1]) selectOptionByText('supplier', jsonData[2][1]);
+            if(jsonData[3] && jsonData[3][1]) document.getElementById('date').value = jsonData[3][1];
+
+            document.querySelector('tbody').innerHTML = '';
+            
+            let startRow = -1;
+            // البحث عن بداية الجدول
+            for(let i=0; i<jsonData.length; i++) {
+                if(jsonData[i] && jsonData[i][0] == 'الصنف') {
+                    startRow = i + 1;
+                    break;
+                }
+            }
+
+            if(startRow !== -1) {
+                for(let i=startRow; i<jsonData.length; i++) {
+                    const row = jsonData[i];
+                    if(!row || row.length === 0 || row[0] === 'الإجمالي') break; 
+
+                    const prodName = row[0];
+                    const qty = row[1] || 0;
+                    const cost = row[2] || 0;
+                    const total = row[3] || 0;
+
+                    const productObj = products.find(p => p.name === prodName);
+                    const prodId = productObj ? productObj._id : '';
+
+                    createRow({ 
+                        product: prodId,
+                        quantity: qty,
+                        cost: cost, 
+                        lineTotal: total      
+                    });
+                }
+            }
+            
+            // قراءة الإجماليات (اختياري، يفضل إعادة الحساب للتأكد)
+            // لكن سنقرأ القيم اليدوية زي الضرائب والمصاريف
+            // ... (يمكن إضافة منطق قراءة الذيل هنا لو الترتيب ثابت)
+
+            calcTotal();
+            alert('تم استيراد البيانات ✅');
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function selectOptionByText(id, text) {
+        const select = document.getElementById(id);
+        for (let i = 0; i < select.options.length; i++) {
+            if (select.options[i].text === text) {
+                select.selectedIndex = i;
+                break;
+            }
+        }
+    }
+
+    async function loadForEdit(id) {
+        const res = await fetch(`${API}/purchases/${id}`);
+        const inv = await res.json();
+        
+        document.getElementById('editId').value = inv._id;
+        document.getElementById('invNum').value = inv.invoiceNumber;
+        document.getElementById('supplier').value = inv.supplier?._id || inv.supplier;
+        document.getElementById('date').value = inv.date.split('T')[0];
+        
+        document.getElementById('extraCost').value = inv.totalExtraCosts || 0;
+        document.getElementById('taxVal').value = inv.totalTax || 0;
+        document.getElementById('whtVal').value = inv.whtAmount || 0;
+        document.getElementById('discount').value = inv.totalDiscount || 0;
+
+        const tbody = document.querySelector('tbody');
+        tbody.innerHTML = '';
+        inv.items.forEach(item => {
+            createRow({
+                product: item.product?._id || item.product,
+                quantity: item.quantity,
+                cost: item.cost,
+                lineTotal: item.lineTotal
+            });
+        });
+        calcTotal();
+    }
+</script>
+</body>
+</html>

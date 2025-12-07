@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تقرير حركة الخزنة</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 25px; border-radius: 10px; max-width: 1200px; margin: 0 auto; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        
+        /* الفلاتر */
+        .filters { background: #e0f2fe; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 15px; align-items: flex-end; border: 1px solid #bae6fd; }
+        .filter-group { display: flex; flex-direction: column; flex: 1; }
+        label { font-size: 13px; font-weight: bold; color: #0369a1; margin-bottom: 5px; }
+        select, input { padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
+        th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: center; }
+        th { background: #1e293b; color: white; }
+        tr:nth-child(even) { background: #f9fafb; }
+        
+        .debit { color: green; font-weight: bold; }
+        .credit { color: red; font-weight: bold; }
+        .balance { font-weight: bold; color: #111827; }
+        .opening-row { background: #fff7ed !important; font-weight: bold; color: #9a3412; }
+
+        .btn { padding: 8px 20px; border: none; cursor: pointer; font-weight: bold; color: white; border-radius: 4px; }
+        .btn-search { background: #3b82f6; }
+        .btn-print { background: #475569; }
+
+        @media print {
+            .no-print { display: none !important; }
+            .card { border: none; padding: 0; box-shadow: none; }
+            th { background: #ccc !important; color: #000 !important; border: 1px solid #000 !important; }
+            td { border: 1px solid #000 !important; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2 style="text-align:center; color:#1e293b; margin-top:0">📊 كشف حركة خزينة / بنك</h2>
+    
+    <div class="filters no-print">
+        <div class="filter-group">
+            <label>الحساب (الخزنة/البنك):</label>
+            <select id="accSelect"><option value="">-- تحميل --</option></select>
+        </div>
+        <div class="filter-group">
+            <label>من تاريخ:</label>
+            <input type="date" id="fromDate">
+        </div>
+        <div class="filter-group">
+            <label>إلى تاريخ:</label>
+            <input type="date" id="toDate">
+        </div>
+        <div class="filter-group" style="flex:0">
+            <button class="btn btn-search" onclick="getReport()">بحث</button>
+        </div>
+        <div class="filter-group" style="flex:0">
+            <button class="btn btn-print" onclick="window.print()">🖨️ طباعة</button>
+        </div>
+    </div>
+
+    <div id="reportHeader" style="display:none; margin-bottom:15px;">
+        <strong>الحساب:</strong> <span id="rAccName"></span> | 
+        <strong>الفترة:</strong> من <span id="rFrom"></span> إلى <span id="rTo"></span>
+    </div>
+
+    <table id="tbl">
+        <thead>
+            <tr>
+                <th width="10%">التاريخ</th>
+                <th width="15%">رقم الإذن</th>
+                <th width="20%">البيان</th>
+                <th width="20%">الطرف الآخر (الحساب المقابل)</th>
+                <th width="10%">وارد (مدين)</th>
+                <th width="10%">صادر (دائن)</th>
+                <th width="15%">الرصيد</th>
+            </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+
+    window.onload = async () => {
+        // 1. تحميل حسابات النقدية فقط (Code starts with 11 or name contains خزنة/بنك)
+        const res = await fetch(`${API}/accounts`);
+        const accs = await res.json();
+        const treasuries = accs.filter(a => (a.code.startsWith('11') || a.name.includes('خزنة') || a.name.includes('بنك')) && a.isTransactional);
+        
+        const sel = document.getElementById('accSelect');
+        sel.innerHTML = '<option value="">-- اختر الحساب --</option>';
+        treasuries.forEach(a => {
+            sel.innerHTML += `<option value="${a._id}">${a.name} (${a.code})</option>`;
+        });
+
+        // تواريخ افتراضية (أول الشهر وآخره)
+        const date = new Date();
+        document.getElementById('toDate').valueAsDate = date;
+        document.getElementById('fromDate').value = new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split('T')[0];
+    };
+
+    async function getReport() {
+        const accId = document.getElementById('accSelect').value;
+        const from = document.getElementById('fromDate').value;
+        const to = document.getElementById('toDate').value;
+        
+        if (!accId) { alert('اختر الحساب أولاً'); return; }
+
+        const url = `${API}/reports/treasury-statement?accountId=${accId}&fromDate=${from}&toDate=${to}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        // عرض الهيدر
+        document.getElementById('reportHeader').style.display = 'block';
+        document.getElementById('rAccName').innerText = data.accountName;
+        document.getElementById('rFrom').innerText = from;
+        document.getElementById('rTo').innerText = to;
+
+        const tbody = document.getElementById('tbody');
+        tbody.innerHTML = '';
+
+        // سطر الرصيد السابق
+        tbody.innerHTML += `
+            <tr class="opening-row">
+                <td colspan="4">رصيد ما قبل الفترة (الرصيد الافتتاحي)</td>
+                <td>-</td>
+                <td>-</td>
+                <td>${data.openingBalance.toLocaleString()}</td>
+            </tr>
+        `;
+
+        if (data.transactions.length === 0) {
+            tbody.innerHTML += '<tr><td colspan="7" style="padding:20px">لا توجد حركات خلال هذه الفترة</td></tr>';
+        } else {
+            data.transactions.forEach(t => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${new Date(t.date).toLocaleDateString('ar-EG')}</td>
+                        <td style="font-weight:bold">${t.ref || '-'}</td>
+                        <td>${t.desc}</td>
+                        <td>${t.otherParty}</td>
+                        <td class="debit">${t.debit > 0 ? t.debit.toLocaleString() : '-'}</td>
+                        <td class="credit">${t.credit > 0 ? t.credit.toLocaleString() : '-'}</td>
+                        <td class="balance" style="color:${t.balance>=0?'green':'red'}">${t.balance.toLocaleString()}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        // سطر الرصيد النهائي
+        tbody.innerHTML += `
+            <tr style="background:#334155; color:white; font-weight:bold; font-size:15px;">
+                <td colspan="6" style="text-align:left; padding-left:20px;">الرصيد النهائي في ${to}:</td>
+                <td>${data.finalBalance.toLocaleString()}</td>
+            </tr>
+        `;
+    }
+</script>
+</body>
+</html>

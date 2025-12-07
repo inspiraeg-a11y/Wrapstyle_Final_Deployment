@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>دفتر قيود اليومية</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 25px; border-radius: 10px; max-width: 1200px; margin: 0 auto; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        h2 { color: #1e293b; margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 15px; display: flex; justify-content: space-between; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: center; }
+        th { background: #e0f2fe; color: #0369a1; }
+        tr:hover { background: #f8fafc; }
+
+        .link { color: #2563eb; text-decoration: none; font-weight: bold; cursor: pointer; }
+        .link:hover { text-decoration: underline; }
+
+        .btn-new { background: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>
+        📒 دفتر قيود اليومية العامة
+        <a href="manual_entry.html" class="btn-new">+ قيد تسوية يدوي</a>
+    </h2>
+    
+    <!-- فلتر بسيط (اختياري) -->
+    <input type="text" id="search" placeholder="بحث برقم القيد أو البيان..." onkeyup="filterTable()" style="padding:10px; width:300px; border:1px solid #ccc; border-radius:5px; margin-bottom:10px;">
+
+    <table>
+        <thead>
+            <tr>
+                <th>رقم القيد (اضغط للتفاصيل)</th>
+                <th>التاريخ</th>
+                <th>البيان / الشرح</th>
+                <th>إجمالي مدين</th>
+                <th>إجمالي دائن</th>
+                <th>الحالة</th>
+            </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+    let allEntries = [];
+
+    async function load() {
+        try {
+            const res = await fetch(`${API}/journal`);
+            const data = await res.json();
+            allEntries = data;
+            render(data);
+        } catch(e) { alert('خطأ في تحميل القيود'); }
+    }
+
+    function render(list) {
+        const tbody = document.getElementById('tbody');
+        if(list.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;color:#666;">لا توجد قيود مسجلة</td></tr>'; return; }
+        
+        tbody.innerHTML = list.map(entry => `
+            <tr>
+                <td>
+                    <!-- 👇 الرابط اللي بيفتح التفاصيل 👇 -->
+                    <a href="journal_details.html?id=${entry._id}" class="link">${entry.referenceNo}</a>
+                </td>
+                <td>${new Date(entry.entryDate).toLocaleDateString('ar-EG')}</td>
+                <td>${entry.description}</td>
+                <td style="color:#166534; font-weight:bold">${entry.totalDebit.toLocaleString()}</td>
+                <td style="color:#991b1b; font-weight:bold">${entry.totalCredit.toLocaleString()}</td>
+                <td><span style="background:#dcfce7; color:#166534; padding:3px 8px; border-radius:10px; font-size:12px">${entry.status}</span></td>
+            </tr>
+        `).join('');
+    }
+
+    function filterTable() {
+        const term = document.getElementById('search').value.toLowerCase();
+        const filtered = allEntries.filter(e => 
+            e.referenceNo.toLowerCase().includes(term) || 
+            e.description.toLowerCase().includes(term)
+        );
+        render(filtered);
+    }
+
+    load();
+</script>
+</body>
+</html>

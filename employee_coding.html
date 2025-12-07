@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تكويد الموظفين</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 30px; max-width: 900px; margin: 0 auto; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        h2 { color: #4f46e5; margin-top: 0; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 13px; color: #475569; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+        .section-title { background: #e0e7ff; padding: 8px; border-radius: 5px; color: #3730a3; font-weight: bold; margin: 20px 0 10px 0; }
+        .readonly-input { background-color: #f3f4f6; color: #111827; font-weight: bold; border: 1px solid #d1d5db; }
+        .btn { padding: 12px; width: 100%; background: #4f46e5; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 20px; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h2 id="pageTitle">👤 تكويد موظف جديد</h2>
+    <input type="hidden" id="editId"> <!-- ID مخفي للتعديل -->
+
+    <div class="section-title">البيانات الشخصية</div>
+    <div class="grid">
+        <div><label>كود الموظف</label><input id="code" placeholder="EMP-001"></div>
+        <div><label>اسم الموظف *</label><input id="name"></div>
+        <div><label>الرقم القومي</label><input id="nid"></div>
+        <div><label>الرقم التأميني</label><input id="insId"></div>
+        <div><label>الإدارة / القسم</label><input id="dept"></div>
+        <div><label>الوظيفة</label><input id="job"></div>
+        <div><label>تاريخ التعيين</label><input type="date" id="hireDate"></div>
+        <div><label>رصيد الإجازات الحالي (يوم)</label><input type="number" id="vacBalance" value="21"></div>
+    </div>
+
+    <div class="section-title">تفاصيل الراتب</div>
+    <div class="grid">
+        <div><label>الراتب الأساسي</label><input type="number" id="basic" value="0" oninput="calcSalaries()"></div>
+        <div><label>الراتب المتغير</label><input type="number" id="variable" value="0" oninput="calcSalaries()"></div>
+        <div style="grid-column:span 2"><label>الأجر التأميني</label><input id="insSalary" class="readonly-input" readonly></div>
+        <div><label>بدل انتقال</label><input type="number" id="trans" value="0" oninput="calcSalaries()"></div>
+        <div><label>بدلات أخرى</label><input type="number" id="other" value="0" oninput="calcSalaries()"></div>
+        <div><label>حوافز</label><input type="number" id="incen" value="0" oninput="calcSalaries()"></div>
+        <div style="grid-column:span 2"><label style="color:green">إجمالي الراتب الشهري</label><input id="totalSalary" class="readonly-input" style="color:green; font-size:18px;" readonly></div>
+    </div>
+
+    <button class="btn" id="saveBtn" onclick="save()">حفظ الموظف</button>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api/hr';
+
+    // عند تحميل الصفحة
+    window.onload = async () => {
+        document.getElementById('hireDate').valueAsDate = new Date();
+        
+        // فحص هل فيه ID للتعديل؟
+        const urlParams = new URLSearchParams(window.location.search);
+        const id = urlParams.get('id');
+        if (id) {
+            await loadEmployeeForEdit(id);
+        }
+    };
+
+    async function loadEmployeeForEdit(id) {
+        try {
+            document.getElementById('pageTitle').innerText = '✏️ تعديل بيانات موظف';
+            document.getElementById('saveBtn').innerText = 'تحديث البيانات';
+            document.getElementById('saveBtn').style.background = '#f59e0b';
+            document.getElementById('editId').value = id;
+
+            const res = await fetch(`${API}/employees/${id}`);
+            const emp = await res.json();
+
+            if (emp) {
+                document.getElementById('code').value = emp.code;
+                document.getElementById('name').value = emp.name;
+                document.getElementById('nid').value = emp.nationalId || '';
+                document.getElementById('insId').value = emp.insuranceId || '';
+                document.getElementById('dept').value = emp.department || '';
+                document.getElementById('job').value = emp.jobTitle || '';
+                if(emp.hireDate) document.getElementById('hireDate').value = emp.hireDate.split('T')[0];
+                document.getElementById('vacBalance').value = emp.vacationBalance;
+
+                document.getElementById('basic').value = emp.basicSalary;
+                document.getElementById('variable').value = emp.variableSalary;
+                document.getElementById('trans').value = emp.transportAllowance;
+                document.getElementById('other').value = emp.otherAllowance;
+                document.getElementById('incen').value = emp.incentives;
+                
+                calcSalaries(); // حساب الإجماليات
+            }
+        } catch(e) { alert('خطأ في تحميل البيانات'); }
+    }
+
+    function calcSalaries() {
+        const basic = parseFloat(document.getElementById('basic').value) || 0;
+        const variable = parseFloat(document.getElementById('variable').value) || 0;
+        document.getElementById('insSalary').value = basic + variable;
+        const trans = parseFloat(document.getElementById('trans').value) || 0;
+        const other = parseFloat(document.getElementById('other').value) || 0;
+        const incen = parseFloat(document.getElementById('incen').value) || 0;
+        document.getElementById('totalSalary').value = basic + variable + trans + other + incen;
+    }
+
+    async function save() {
+        const id = document.getElementById('editId').value;
+        const data = {
+            _id: id || null, // لو تعديل نبعت الـ ID
+            code: document.getElementById('code').value,
+            name: document.getElementById('name').value,
+            nationalId: document.getElementById('nid').value,
+            insuranceId: document.getElementById('insId').value,
+            department: document.getElementById('dept').value,
+            jobTitle: document.getElementById('job').value,
+            hireDate: document.getElementById('hireDate').value,
+            vacationBalance: document.getElementById('vacBalance').value,
+            basicSalary: document.getElementById('basic').value,
+            variableSalary: document.getElementById('variable').value,
+            insuranceSalary: document.getElementById('insSalary').value,
+            transportAllowance: document.getElementById('trans').value,
+            otherAllowance: document.getElementById('other').value,
+            incentives: document.getElementById('incen').value,
+            totalSalary: document.getElementById('totalSalary').value
+        };
+
+        if(!data.name || !data.totalSalary) { alert('البيانات ناقصة'); return; }
+
+        try {
+            const res = await fetch(`${API}/employees`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+            if(res.ok) { 
+                alert(id ? 'تم التعديل بنجاح' : 'تم الحفظ بنجاح'); 
+                if(id) window.location.href = 'employees_list.html'; // رجوع للقائمة
+                else location.reload();
+            } else { 
+                const err = await res.json(); alert('خطأ: ' + err.message); 
+            }
+        } catch(e) { alert('خطأ اتصال'); }
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WrapStyle ERP</title>
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f5f9; display: flex; height: 100vh; overflow: hidden; }
+        .sidebar { width: 260px; background-color: #1e293b; color: #fff; display: flex; flex-direction: column; transition: 0.3s; flex-shrink: 0; border-left: 1px solid #334155; }
+        .sidebar-header { padding: 20px; text-align: center; background-color: #0f172a; border-bottom: 1px solid #334155; }
+        .sidebar-header h2 { margin: 0; font-size: 22px; color: #fff; font-weight: bold; }
+        .menu-group { border-bottom: 1px solid #334155; }
+        .accordion-header { width: 100%; padding: 15px 20px; background: none; border: none; color: #e2e8f0; text-align: right; cursor: pointer; font-size: 15px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
+        .accordion-header:hover { background-color: #334155; color: #fff; }
+        .accordion-header::after { content: '▼'; font-size: 11px; transition: 0.3s; }
+        .accordion-header.active::after { transform: rotate(180deg); }
+        .accordion-panel { display: none; background-color: #0f172a; }
+        .accordion-panel button { width: 100%; padding: 10px 30px; background: none; border: none; color: #94a3b8; text-align: right; cursor: pointer; font-size: 13px; transition: 0.2s; border-right: 3px solid transparent; }
+        .accordion-panel button:hover { background-color: #1e293b; color: #fff; border-right-color: #3b82f6; padding-right: 35px; }
+        .main-content { flex-grow: 1; display: flex; flex-direction: column; background: #f1f5f9; }
+        iframe { width: 100%; height: 100%; border: none; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2>WrapStyle ERP</h2>
+        </div>
+
+        <!-- 1. المخازن والتشغيل -->
+        <div class="menu-group">
+            <button class="accordion-header" onclick="toggleAccordion(this)">📦 المخازن والتشغيل</button>
+            <div class="accordion-panel">
+                <button onclick="changeScreen('products.html')">➕ تكويد أصناف (إضافة)</button>
+                <button onclick="changeScreen('products_list.html')">📋 دليل الأصناف (بحث/تعديل)</button>
+                <button onclick="changeScreen('warehouses.html')">🏗️ هيكل المخازن (الشجرة)</button>
+                <button onclick="changeScreen('stock_in.html')">📥 إذن استلام (وارد)</button>
+                <button onclick="changeScreen('stock_out.html')">✂️ إذن صرف (تشغيل)</button>
+                <button onclick="changeScreen('stock_transfer.html')">🔄 تحويل بين المخازن</button>
+                <button onclick="changeScreen('stock_report.html')">📜 سجل حركات المخزن (مراقبة)</button>
+                <button onclick="changeScreen('inventory_status.html')">📊 أرصدة المخزن (الكميات)</button>
+                <button onclick="changeScreen('stock_analysis.html')">📈 تحليل المخزون (مالي)</button>
+            </div>
+        </div>
+
+        <!-- 2. المبيعات والعملاء -->
+        <div class="menu-group">
+            <button class="accordion-header" onclick="toggleAccordion(this)">🛒 المبيعات والعملاء</button>
+            <div class="accordion-panel">
+                <button onclick="changeScreen('sales_invoice.html')">🧾 فاتورة مبيعات (أمر شغل)</button>
+                <button onclick="changeScreen('sales_list.html')">📋 سجل المبيعات (سداد/تعديل)</button>
+                <button onclick="changeScreen('customers.html')">👥 قاعدة بيانات العملاء</button>
+                <button onclick="changeScreen('car_coding.html')">🚗 تكويد السيارات (الموديلات)</button>
+                <button onclick="changeScreen('sales_report.html')">📈 تقارير المبيعات</button>
+                <button onclick="changeScreen('sales_analysis.html')">📊 تحليل المبيعات والربحية</button>
+            </div>
+        </div>
+
+        <!-- 3. المشتريات والموردين -->
+        <div class="menu-group">
+            <button class="accordion-header" onclick="toggleAccordion(this)">🚚 المشتريات والموردين</button>
+            <div class="accordion-panel">
+                <button onclick="changeScreen('purchase_invoice.html')">📑 فاتورة مشتريات (جديدة)</button>
+                <button onclick="changeScreen('purchase_list.html')">📋 سجل المشتريات (الأرشيف)</button>
+                <button onclick="changeScreen('supplier_coding.html')">🏭 تكويد الموردين</button>
+                <button onclick="changeScreen('supplier_report.html')">📜 كشف حساب مورد</button>
+            </div>
+        </div>
+
+        <!-- 4. النقدية -->
+        <div class="menu-group">
+            <button class="accordion-header" onclick="toggleAccordion(this)">💵 الخزينة والبنوك</button>
+            <div class="accordion-panel">
+                <button onclick="changeScreen('treasury.html')">💸 إذن قبض / صرف (يومية)</button>
+                <button onclick="changeScreen('treasury_report.html')">📜 سجل الأذونات والأرصدة</button>
+                <button onclick="changeScreen('treasury_statement.html')">📊 كشف حركة خزنة تفصيلي</button>
+            </div>
+        </div>
+
+        <!-- 5. الموارد البشرية -->
+        <div class="menu-group">
+            <button class="accordion-header" onclick="toggleAccordion(this)">👔 الموارد البشرية (HR)</button>
+            <div class="accordion-panel">
+                <button onclick="changeScreen('employee_coding.html')">👤 تكويد موظف جديد</button>
+                <button onclick="changeScreen('employees_list.html')">📋 دليل الموظفين (بحث)</button>
+                <button onclick="changeScreen('payroll.html')">💰 مسير الرواتب (الشهرية)</button>
+                <button onclick="changeScreen('payroll_report.html')">📅 أرشيف الرواتب (الفيشات)</button>
+            </div>
+        </div>
+
+        <!-- 6. المالية والحسابات -->
+        <div class="menu-group">
+            <button class="accordion-header" onclick="toggleAccordion(this)">💰 الحسابات العامة</button>
+            <div class="accordion-panel">
+                <button onclick="changeScreen('accounts.html')">🌳 دليل الحسابات (الشجرة)</button>
+                <button onclick="changeScreen('cost_centers.html')">🏢 مراكز التكلفة</button>
+                <button onclick="changeScreen('journal.html')">📒 دفتر القيود (يومية عامة)</button>
+                <button onclick="changeScreen('manual_entry.html')">📝 قيد تسوية يدوي</button>
+                <button onclick="changeScreen('smart_reports.html')">📈 القوائم والتقارير المالية</button>
+                <button onclick="changeScreen('job_profitability.html')">📊 تحليل ربحية أمر الشغل</button>
+            </div>
+        </div>
+        
+        <!-- 7. النظام -->
+         <div class="menu-group">
+            <button class="accordion-header" onclick="toggleAccordion(this)">⚙️ أدوات النظام</button>
+            <div class="accordion-panel">
+                <button onclick="changeScreen('file_manager.html')">📂 النسخ الاحتياطي (Excel)</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <iframe src="dashboard.html" name="content_frame" id="mainFrame"></iframe>
+    </div>
+
+    <script>
+        function changeScreen(page) {
+            document.getElementById('mainFrame').src = page;
+            // حفظ اسم الصفحة عشان لما تعمل ريفرش
+            localStorage.setItem('lastPage', page);
+        }
+
+        function toggleAccordion(btn) {
+            btn.classList.toggle("active");
+            var panel = btn.nextElementSibling;
+            if (panel.style.display === "block") {
+                panel.style.display = "none";
+            } else {
+                panel.style.display = "block";
+            }
+        }
+        
+        // استرجاع آخر صفحة عند التحميل
+        window.onload = function() {
+            const last = localStorage.getItem('lastPage');
+            if(last) document.getElementById('mainFrame').src = last;
+        }
+    </script>
+</body>
+</html>

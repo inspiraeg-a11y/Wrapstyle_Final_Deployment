@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>شجرة الحسابات</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f8fafc; }
+        .card { background: white; padding: 25px; border-radius: 10px; max-width: 1000px; margin: 0 auto; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        h2 { color: #1e40af; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-top: 0; }
+        .row { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
+        .col { flex: 1; min-width: 200px; }
+        label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+        .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; color: white; }
+        .btn-save { background: #1e40af; } 
+        .btn-edit { background: #f59e0b; width: auto; padding: 5px 10px; font-size: 12px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+        th, td { padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: right; }
+        th { background: #f0f9ff; color: #1e40af; }
+        
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .main-acc { background: #e0e7ff; color: #3730a3; font-weight: bold; } /* تمييز الرئيسي */
+        .sub-acc { background: #ffffff; }
+        
+        /* Modal */
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.4); }
+        .modal-content { background-color: #fff; margin: 10% auto; padding: 25px; border-radius: 8px; width: 500px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>🌳 إدارة شجرة الحسابات</h2>
+    <div id="msg" style="text-align:center; color:green; font-weight:bold; display:none; margin-bottom:10px;"></div>
+    
+    <div class="row">
+        <div class="col"><label>كود الحساب</label><input id="acCode" placeholder="مثال: 1101"></div>
+        <div class="col"><label>اسم الحساب</label><input id="acName" placeholder="مثال: الخزينة الرئيسية"></div>
+        <div class="col"><label>الحساب الأب (الكود)</label><input id="acParent" placeholder="مثال: 1100 (اختياري)"></div>
+    </div>
+    
+    <div class="row">
+        <div class="col"><label>تصنيف المستوى</label>
+            <select id="acLevel">
+                <option value="Sub">حساب فرعي (يقبل حركات)</option>
+                <option value="Main">حساب رئيسي (عنوان تجميعي)</option>
+            </select>
+        </div>
+        <div class="col"><label>نوع الحساب</label>
+            <select id="acType">
+                <option value="Asset">أصول (Asset)</option>
+                <option value="Liability">خصوم (Liability)</option>
+                <option value="Equity">حقوق ملكية (Equity)</option>
+                <option value="Revenue">إيرادات (Revenue)</option>
+                <option value="Expense">مصروفات (Expense)</option>
+            </select>
+        </div>
+        <div class="col"><label>الطبيعة</label>
+            <select id="acNature"><option value="Debit">مدين</option><option value="Credit">دائن</option></select>
+        </div>
+    </div>
+    
+    <button class="btn btn-save" onclick="saveAccount()">حفظ الحساب الجديد</button>
+</div>
+
+<div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3>دليل الحسابات</h3>
+        <button onclick="loadAccounts()" style="background:#64748b; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">🔄 تحديث</button>
+    </div>
+    <table>
+        <thead><tr><th>الكود</th><th>الاسم</th><th>المستوى</th><th>النوع</th><th>تعديل</th></tr></thead>
+        <tbody id="acTable"></tbody>
+    </table>
+</div>
+
+<div id="editModal" class="modal">
+    <div class="modal-content">
+        <h3 style="color:#f59e0b; margin-top:0;">تعديل حساب</h3>
+        <input type="hidden" id="editId">
+        <label>اسم الحساب</label><input id="editName" style="margin-bottom:10px;">
+        <label>التصنيف (غيّر هذا ليظهر في القوائم)</label>
+        <select id="editLevel" style="margin-bottom:20px;">
+            <option value="true">فرعي (يظهر)</option>
+            <option value="false">رئيسي (مخفي)</option>
+        </select>
+        <div style="display:flex; gap:10px;">
+            <button class="btn" style="background:#f59e0b;" onclick="updateAccount()">حفظ التعديلات</button>
+            <button class="btn" style="background:#64748b;" onclick="closeModal()">إلغاء</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+    let allAccounts = [];
+
+    // 1. حفظ حساب جديد
+    async function saveAccount() {
+        const data = {
+            code: document.getElementById('acCode').value,
+            name: document.getElementById('acName').value,
+            parentId: document.getElementById('acParent').value,
+            type: document.getElementById('acType').value,
+            nature: document.getElementById('acNature').value,
+            isTransactional: document.getElementById('acLevel').value === 'Sub'
+        };
+
+        if (!data.code || !data.name) { alert('الكود والاسم مطلوبان!'); return; }
+
+        try {
+            const res = await fetch(`${API}/accounts`, { 
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) 
+            });
+            if (res.ok) {
+                showMsg('تم الحفظ بنجاح!');
+                document.getElementById('acCode').value = '';
+                document.getElementById('acName').value = '';
+                loadAccounts();
+            } else {
+                const json = await res.json();
+                alert('خطأ: ' + (json.message || 'فشل الحفظ'));
+            }
+        } catch(e) { alert('تأكد من تشغيل السيرفر'); }
+    }
+
+    // 2. عرض الجدول
+    async function loadAccounts() {
+        try {
+            const res = await fetch(`${API}/accounts`);
+            allAccounts = await res.json();
+            allAccounts.sort((a, b) => a.code.localeCompare(b.code));
+
+            const tbody = document.getElementById('acTable');
+            tbody.innerHTML = allAccounts.map(a => {
+                const rowClass = a.isTransactional ? 'sub-acc' : 'main-acc';
+                const badgeText = a.isTransactional ? 'فرعي (ظاهر)' : 'رئيسي (مخفي)';
+                const badgeStyle = a.isTransactional ? 'background:#dcfce7; color:#166534' : 'background:#e0e7ff; color:#3730a3';
+                
+                return `<tr class="${rowClass}">
+                    <td>${a.code}</td>
+                    <td style="font-weight:bold">${a.name}</td>
+                    <td><span class="badge" style="${badgeStyle}">${badgeText}</span></td>
+                    <td>${a.type}</td>
+                    <td><button class="btn btn-edit" onclick="openEdit('${a._id}')">✏️</button></td>
+                </tr>`;
+            }).join('');
+        } catch(e) { console.error(e); }
+    }
+
+    // 3. التعديل
+    function openEdit(id) {
+        const acc = allAccounts.find(a => a._id === id);
+        if(acc) {
+            document.getElementById('editId').value = acc._id;
+            document.getElementById('editName').value = acc.name;
+            document.getElementById('editLevel').value = acc.isTransactional.toString();
+            document.getElementById('editModal').style.display = 'block';
+        }
+    }
+
+    async function updateAccount() {
+        const id = document.getElementById('editId').value;
+        const updateData = {
+            name: document.getElementById('editName').value,
+            isTransactional: document.getElementById('editLevel').value === 'true'
+        };
+
+        try {
+            const res = await fetch(`${API}/accounts/${id}`, { 
+                method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(updateData) 
+            });
+            if (res.ok) { alert('تم التحديث!'); closeModal(); loadAccounts(); }
+            else { alert('فشل التحديث'); }
+        } catch(e) { alert('خطأ سيرفر'); }
+    }
+
+    function closeModal() { document.getElementById('editModal').style.display = 'none'; }
+    function showMsg(t) { const m=document.getElementById('msg'); m.innerText=t; m.style.display='block'; setTimeout(()=>m.style.display='none',3000); }
+
+    window.onload = loadAccounts;
+</script>
+</body>
+</html>

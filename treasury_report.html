@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>سجل النقدية</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 25px; border-radius: 10px; max-width: 1200px; margin: 0 auto; margin-bottom: 20px; }
+        
+        .bal-grid { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
+        .bal-card { background: #1e293b; color: white; padding: 15px; border-radius: 8px; flex: 1; min-width: 200px; text-align: center; }
+        .bal-val { font-size: 24px; font-weight: bold; color: #4ade80; display: block; margin-top: 5px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
+        th { background: #e0f2fe; color: #0369a1; }
+        
+        .btn { padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; color: white; margin: 0 2px; }
+        .btn-edit { background: #f59e0b; } .btn-del { background: #ef4444; } .btn-print { background: #3b82f6; }
+        .btn-new { background: #10b981; padding: 8px 15px; text-decoration: none; font-size: 14px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>💰 أرصدة الخزائن والبنوك</h2>
+    <div class="bal-grid" id="balContainer">Loading...</div>
+</div>
+
+<div class="card">
+    <h2 style="display:flex; justify-content:space-between">
+        📜 حركة النقدية
+        <a href="treasury.html" class="btn-new">+ إذن جديد</a>
+    </h2>
+    <table>
+        <thead><tr><th>الرقم</th><th>التاريخ</th><th>النوع</th><th>المبلغ</th><th>الخزينة</th><th>الطرف الآخر</th><th>طريقة الدفع</th><th>إجراءات</th></tr></thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+
+    async function load() {
+        // الأرصدة
+        const balRes = await fetch(`${API}/treasury/balances/summary`);
+        const bals = await balRes.json();
+        document.getElementById('balContainer').innerHTML = bals.map(b => `
+            <div class="bal-card"><div>${b.name}</div><span class="bal-val">${b.balance.toLocaleString()}</span></div>
+        `).join('');
+
+        // الجدول
+        const listRes = await fetch(`${API}/treasury`);
+        const list = await listRes.json();
+        document.getElementById('tbody').innerHTML = list.map(t => `
+            <tr>
+                <td>${t.serialNumber}</td>
+                <td>${new Date(t.date).toLocaleDateString('ar-EG')}</td>
+                <td style="color:${t.type==='Inbound'?'green':'red'}">${t.type==='Inbound'?'قبض':'صرف'}</td>
+                <td style="font-weight:bold">${t.amount.toLocaleString()}</td>
+                <td>${t.treasuryAccount?.name}</td>
+                <td>${t.targetAccount?.name}</td>
+                <td>${t.paymentMethod}</td>
+                <td>
+                    <button class="btn btn-print" onclick="window.open('treasury_print.html?id=${t._id}','_blank','width=800,height=600')">🖨️</button>
+                    <button class="btn btn-edit" onclick="location.href='treasury.html?id=${t._id}'">✏️</button>
+                    <button class="btn btn-del" onclick="del('${t._id}')">🗑️</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    async function del(id) {
+        if(!confirm('حذف الإذن؟ (سيتم إلغاء القيد المالي)')) return;
+        await fetch(`${API}/treasury/${id}`, { method: 'DELETE' });
+        alert('تم الحذف'); load();
+    }
+
+    load();
+</script>
+</body>
+</html>

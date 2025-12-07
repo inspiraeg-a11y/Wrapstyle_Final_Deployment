@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تحليل حركة المخزون</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f8fafc; }
+        .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); width: 98%; margin: 0 auto; overflow-x: auto; }
+        .filter-bar { display: flex; gap: 10px; background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: center; white-space: nowrap; }
+        th { background: #1e293b; color: white; }
+        .in { color: #166534; background: #dcfce7; }
+        .out { color: #991b1b; background: #fee2e2; }
+        .btn { padding: 8px 20px; background:#333; color:white; border:none; cursor:pointer; border-radius:5px; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h2>📈 تحليل حركة المخزون</h2>
+    <div class="filter-bar">
+        <input id="fName" placeholder="اسم المنتج" onkeyup="applyFilters()">
+        <input id="fRoll" placeholder="كود الرول" onkeyup="applyFilters()">
+        <select id="fType" onchange="applyFilters()"><option value="">الكل</option><option value="Inbound">وارد</option><option value="Outbound">صادر</option></select>
+        <button onclick="window.print()" class="btn">🖨️ طباعة</button>
+    </div>
+    <table>
+        <thead><tr><th>التاريخ</th><th>الإذن</th><th>المرجع</th><th>الصنف</th><th>الرول</th><th>طول</th><th>عرض</th><th>وارد (م2)</th><th>صادر (م2)</th><th>قيمة</th></tr></thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+<script>
+    const API = 'http://localhost:5000/api';
+    let rawData = [];
+    window.onload = async () => {
+        try {
+            const res = await fetch(`${API}/stock/analysis`);
+            if (!res.ok) throw new Error("فشل الاتصال");
+            rawData = await res.json();
+            applyFilters();
+        } catch(e) { document.getElementById('tbody').innerHTML = `<tr><td colspan="10">${e.message}</td></tr>`; }
+    };
+    function applyFilters() {
+        const fName = document.getElementById('fName').value.toLowerCase();
+        const fRoll = document.getElementById('fRoll').value.toLowerCase();
+        const fType = document.getElementById('fType').value;
+        let filtered = rawData.filter(i => 
+            (!fName || i.productName.toLowerCase().includes(fName)) &&
+            (!fRoll || i.rollCode.toLowerCase().includes(fRoll)) &&
+            (!fType || i.type === fType)
+        );
+        document.getElementById('tbody').innerHTML = filtered.map(r => `
+            <tr>
+                <td>${new Date(r.date).toLocaleDateString('ar-EG')}</td>
+                <td>${r.serial}</td>
+                <td>${r.docRef}</td>
+                <td>${r.productName}</td>
+                <td>${r.rollCode}</td>
+                <td>${r.length}</td>
+                <td>${r.width}</td>
+                <td class="${r.areaIn>0?'in':''}">${r.areaIn||'-'}</td>
+                <td class="${r.areaOut>0?'out':''}">${r.areaOut||'-'}</td>
+                <td>${parseFloat(r.totalValue).toLocaleString()}</td>
+            </tr>`).join('');
+    }
+</script>
+</body>
+</html>

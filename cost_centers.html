@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>مراكز التكلفة</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 25px; border-radius: 10px; max-width: 800px; margin: 0 auto; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        h2 { color: #1e293b; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 0; }
+        .row { display: flex; gap: 10px; margin-bottom: 15px; }
+        input, select { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        button { padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #eee; padding: 10px; text-align: center; }
+        th { background: #1e293b; color: white; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h2>🏢 دليل مراكز التكلفة (Cost Centers)</h2>
+    <div class="row">
+        <input id="code" placeholder="الكود (مثال: 101)">
+        <input id="name" placeholder="اسم المركز (مثال: فرع التجمع)">
+        <select id="type">
+            <option value="Production">إنتاج وتشغيل</option>
+            <option value="Sales">بيع وتسويق</option>
+            <option value="Admin">إداري وعمومي</option>
+        </select>
+        <button onclick="save()">حفظ</button>
+    </div>
+    <table id="tbl"><thead><tr><th>الكود</th><th>الاسم</th><th>النوع</th><th>إجراءات</th></tr></thead><tbody></tbody></table>
+</div>
+<script>
+    const API = 'http://localhost:5000/api/cost-centers';
+    async function load() {
+        try {
+            const res = await fetch(API);
+            const data = await res.json();
+            document.querySelector('tbody').innerHTML = data.map(c => `
+                <tr><td>${c.code}</td><td>${c.name}</td><td>${c.type}</td>
+                <td><button onclick="del('${c._id}')" style="background:#ef4444;padding:5px 10px">🗑️</button></td></tr>
+            `).join('');
+        } catch(e) { console.log('تأكد من وجود costCenterRoutes.js'); }
+    }
+    async function save() {
+        const data = { code: document.getElementById('code').value, name: document.getElementById('name').value, type: document.getElementById('type').value };
+        if(!data.code || !data.name) return alert('اكمل البيانات');
+        await fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+        load();
+    }
+    async function del(id) {
+        if(confirm('حذف؟')) { await fetch(`${API}/${id}`, { method:'DELETE' }); load(); }
+    }
+    load();
+</script>
+</body>
+</html>

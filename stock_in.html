@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>إذن استلام خامات</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #fffbeb; }
+        .paper { background: white; padding: 30px; max-width: 950px; margin: 0 auto; border-top: 5px solid #f59e0b; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h2 { text-align: center; color: #333; margin-top: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+        th { background: #fef3c7; }
+        input, select { width: 100%; border: none; text-align: center; background: transparent; font-size: 14px; }
+        input[readonly] { background: #f3f4f6; cursor: not-allowed; color: #666; } 
+        .btn-add { background: #10b981; color: white; border: none; padding: 5px 10px; cursor: pointer; margin-top: 10px; border-radius: 4px; }
+        .btn-load { background: #3b82f6; color: white; border: none; padding: 8px 15px; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        .btn-save { background: #d97706; color: white; padding: 10px; width: 100%; border: none; font-size: 16px; cursor: pointer; margin-top: 20px; font-weight: bold; border-radius: 5px; }
+        .header-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; background: #fff7ed; padding: 15px; border-radius: 8px; border: 1px solid #ffedd5; }
+        #msg { display: none; padding: 10px; text-align: center; font-weight: bold; margin-bottom: 15px; border-radius: 5px; }
+        .error-field { background-color: #fee2e2 !important; border: 1px solid red !important; }
+    </style>
+</head>
+<body>
+
+<div class="paper">
+    <h2>📥 إذن استلام خامات (وارد)</h2>
+    <div id="msg"></div>
+    
+    <div style="background: #e0f2fe; padding: 10px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #bae6fd; display: flex; align-items: center; gap: 10px;">
+        <label style="font-weight: bold; color: #0369a1;">🔗 ربط بفاتورة شراء:</label>
+        <input id="inRef" placeholder="اكتب رقم الفاتورة (INV-...)" style="background: white; border: 1px solid #ccc; padding: 5px; width: 200px;">
+        <button class="btn-load" onclick="loadInvoiceItems()">جلب الأصناف</button>
+        <span id="invStatus" style="font-size:12px; margin-right:10px;"></span>
+    </div>
+
+    <div class="header-grid">
+        <div><label>التاريخ</label><br><input type="date" id="inDate" style="border:1px solid #ddd; width:90%"></div>
+        <div><label>رقم الإذن (تلقائي)</label><br><input id="inSerial" placeholder="TRX-AUTO" readonly style="border:1px solid #ddd; width:90%"></div>
+        
+        <div>
+            <label>المخزن المستلم</label><br>
+            <select id="inWarehouse" style="border:1px solid #ddd; width:90%; background:white">
+                <option value="">جار التحميل...</option>
+            </select>
+        </div>
+
+        <div><label>اسم المستلم</label><br><input id="inReceiver" placeholder="اسم الموظف" style="border:1px solid #ddd; width:90%"></div>
+        <div style="grid-column: span 2;"><label>الملاحظات</label><br><input id="inNotes" placeholder="ملاحظات عامة" style="border:1px solid #ddd; width:96%"></div>
+    </div>
+
+    <table id="tbl">
+        <thead>
+            <tr>
+                <th width="30%">الصنف</th>
+                <th width="20%">كود الرول (Scan)</th>
+                <th width="15%">الطول</th>
+                <th width="15%">العرض</th>
+                <th width="10%">الكمية</th>
+                <th width="10%">x</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <button class="btn-add" onclick="addRow()">+ سطر يدوي</button>
+    <button class="btn-save" onclick="save()">حفظ الإذن</button>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+    let productsList = [];
+    document.getElementById('inDate').valueAsDate = new Date();
+
+    async function fetchMasterData() {
+        try {
+            const prodRes = await fetch(`${API}/products`);
+            productsList = await prodRes.json();
+
+            const whRes = await fetch(`${API}/warehouses/transactional`);
+            const warehouses = await whRes.json();
+            
+            const whSelect = document.getElementById('inWarehouse');
+            if (warehouses.length > 0) {
+                whSelect.innerHTML = '<option value="">-- اختر مخزن فرعي --</option>';
+                warehouses.forEach(w => {
+                    // 👇 التعديل: value هو ID عشان القيد، والعرض هو المسار
+                    whSelect.innerHTML += `<option value="${w._id}">${w.path}</option>`;
+                });
+            } else {
+                whSelect.innerHTML = '<option value="">⚠️ لا توجد مخازن فرعية</option>';
+            }
+
+        } catch (e) { alert('فشل تحميل البيانات'); }
+    }
+
+    function getProductOptions(selectedId) {
+        return productsList.map(p => `<option value="${p._id}" ${p._id === selectedId ? 'selected' : ''}>${p.name}</option>`).join('');
+    }
+
+    function addRow(productObj = null, qty = 1) {
+        const tbody = document.querySelector('tbody');
+        
+        const prodId = productObj ? productObj._id : '';
+        const prodName = productObj ? productObj.name : '';
+        
+        const productInput = prodId 
+            ? `<input value="${prodName}" readonly><input type="hidden" class="prod-select" value="${prodId}">`
+            : `<select class="prod-select"><option value="">اختر</option>${getProductOptions('')}</select>`;
+
+        const rowHTML = `<tr>
+            <td>${productInput}</td>
+            <td><input class="roll-code" placeholder="اكتب الكود" style="border:1px solid #ccc; background:white;"></td>
+            <td><input class="len" value="${productObj?.dimensions?.length||0}"></td>
+            <td><input class="wid" value="${productObj?.dimensions?.width||0}"></td>
+            <td><input type="number" class="in-qty" value="${qty}" style="font-weight:bold"></td>
+            <td style="cursor:pointer; color:red" onclick="this.parentElement.remove()">x</td>
+        </tr>`;
+        tbody.insertAdjacentHTML('beforeend', rowHTML);
+    }
+
+    async function loadInvoiceItems() {
+        const invNum = document.getElementById('inRef').value;
+        if(!invNum) { alert('اكتب رقم فاتورة الشراء أولاً'); return; }
+
+        try {
+            const res = await fetch(`${API}/purchases/number/${invNum}`);
+            if(!res.ok) throw new Error('فاتورة الشراء غير موجودة');
+            
+            const invoice = await res.json();
+            document.getElementById('invStatus').innerText = `✅ تم العثور على فاتورة بتاريخ ${invoice.date.split('T')[0]}`;
+            document.getElementById('invStatus').style.color = 'green';
+            
+            document.querySelector('tbody').innerHTML = '';
+
+            invoice.items.forEach(item => {
+                const prod = productsList.find(p => p._id === (item.product._id || item.product)) || item.product;
+                if(prod) addRow(prod, item.quantity); 
+            });
+        } catch(e) {
+            document.getElementById('invStatus').innerText = `❌ ${e.message}`;
+            document.getElementById('invStatus').style.color = 'red';
+        }
+    }
+
+    async function save() {
+        const rows = document.querySelectorAll('tbody tr');
+        if(rows.length === 0) { alert('الجدول فارغ'); return; }
+
+        const warehouse = document.getElementById('inWarehouse').value;
+        if(!warehouse) { alert('يجب اختيار المخزن المستلم'); return; }
+
+        const items = Array.from(rows).map(tr => ({
+            product: tr.querySelector('.prod-select').value,
+            rollCode: tr.querySelector('.roll-code').value || 'AUTO-'+Date.now(),
+            quantity: tr.querySelector('.in-qty').value,
+            customDimensions: {
+                length: tr.querySelector('.len').value,
+                width: tr.querySelector('.wid').value
+            }
+        }));
+
+        const data = {
+            type: 'Inbound',
+            serialNumber: document.getElementById('inSerial').value,
+            date: document.getElementById('inDate').value,
+            warehouse: warehouse, // ID
+            receiverName: document.getElementById('inReceiver').value,
+            notes: document.getElementById('inNotes').value,
+            supplierDoc: document.getElementById('inRef').value,
+            items: items
+        };
+
+        try {
+            const res = await fetch(`${API}/stock`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+            const json = await res.json();
+            if(res.ok) { 
+                document.getElementById('msg').innerText = '✅ تم الاستلام بنجاح';
+                document.getElementById('msg').style.display = 'block';
+                document.getElementById('msg').style.background = '#dcfce7';
+                document.getElementById('msg').style.color = '#166534';
+                setTimeout(() => location.reload(), 2000); 
+            } else { 
+                alert('خطأ: ' + json.message); 
+            }
+        } catch(e) { alert('خطأ اتصال'); }
+    }
+
+    fetchMasterData();
+</script>
+</body>
+</html>

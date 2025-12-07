@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تكويد العملاء</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 25px; border-radius: 10px; max-width: 900px; margin: 0 auto; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        h2 { color: #3b82f6; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-top: 0; }
+        .row { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
+        .col { flex: 1; min-width: 200px; }
+        label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; }
+        input { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+        .btn { background: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+        th, td { padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>👥 تكويد بيانات العملاء</h2>
+    <div id="msg" style="text-align:center; color:green; font-weight:bold;"></div>
+    
+    <div class="row">
+        <div class="col"><label>كود العميل</label><input id="cCode" placeholder="CUST-001"></div>
+        <div class="col"><label>اسم العميل</label><input id="cName" placeholder="مثال: أحمد مصطفى"></div>
+        <div class="col"><label>رقم التواصل</label><input id="cPhone" placeholder="01xxxxxxxxx"></div>
+    </div>
+    <div class="row">
+        <div class="col"><label>اسم الشركة (للفواتير)</label><input id="cCompany" placeholder="اختياري"></div>
+        <div class="col"><label>الرقم الضريبي</label><input id="cTaxId" placeholder="اختياري"></div>
+        <div class="col"><label>العنوان</label><input id="cAddress" placeholder="المدينة، المنطقة"></div>
+    </div>
+    
+    <button class="btn" onclick="saveCustomer()">حفظ العميل</button>
+</div>
+
+<div class="card">
+    <h2>سجل العملاء</h2>
+    <button onclick="loadCustomers()" style="background:#64748b; color:white; border:none; padding:8px 15px; border-radius:5px; margin-bottom:15px;">تحديث</button>
+    <table>
+        <thead><tr><th>الكود</th><th>الاسم</th><th>الهاتف</th><th>الضريبي</th><th>العنوان</th></tr></thead>
+        <tbody id="custTable"></tbody>
+    </table>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+
+    async function saveCustomer() {
+        const data = {
+            code: document.getElementById('cCode').value,
+            name: document.getElementById('cName').value,
+            phone: document.getElementById('cPhone').value,
+            companyName: document.getElementById('cCompany').value,
+            taxId: document.getElementById('cTaxId').value,
+            address: document.getElementById('cAddress').value,
+            isTaxable: !!document.getElementById('cTaxId').value // يخضع للضريبة لو تم إدخال رقم ضريبي
+        };
+
+        if (!data.name || !data.phone) { alert('الاسم والهاتف مطلوبين!'); return; }
+
+        try {
+            const res = await fetch(`${API}/customers`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+            const msg = document.getElementById('msg');
+            if (res.ok) { msg.innerText = 'تم حفظ العميل بنجاح! ✅'; loadCustomers(); }
+            else { msg.innerText = 'خطأ في الحفظ.'; }
+        } catch(e) { alert('تأكد من تشغيل السيرفر!'); }
+    }
+
+    async function loadCustomers() {
+        try {
+            const res = await fetch(`${API}/customers`);
+            const data = await res.json();
+            const tbody = document.getElementById('custTable');
+            tbody.innerHTML = data.map(c => `<tr>
+                <td>${c.code}</td>
+                <td>${c.name}</td>
+                <td>${c.phone}</td>
+                <td>${c.taxId || '-'}</td>
+                <td>${c.address || '-'}</td>
+            </tr>`).join('');
+        } catch(e) { alert('فشل تحميل العملاء.'); }
+    }
+
+    window.onload = loadCustomers;
+</script>
+</body>
+</html>

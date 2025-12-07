@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>إذن صرف خامات</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .paper { background: white; padding: 30px; max-width: 1100px; margin: 0 auto; border-top: 5px solid #ef4444; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h2 { text-align: center; color: #333; margin-top: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+        th { background: #f3f4f6; }
+        input, select { width: 100%; border: none; text-align: center; background: transparent; box-sizing: border-box; }
+        input[readonly] { background: #f8fafc; cursor: not-allowed; font-weight: bold; color: #555; }
+        .header-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; background: #f8fafc; padding: 10px; border-radius: 5px; }
+        .btn-load { background: #3b82f6; color: white; border: none; padding: 8px 15px; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        .btn-save { background: #ef4444; color: white; padding: 10px; width: 100%; border: none; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 20px; }
+        #msg { display: none; padding: 10px; text-align: center; font-weight: bold; margin-bottom: 15px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="paper">
+    <h2>✂️ إذن صرف خامات (لأمر تشغيل)</h2>
+    <div id="msg"></div>
+    
+    <div class="header-grid">
+        <div><label>التاريخ</label><input type="date" id="outDate"></div>
+        <div><label>رقم الإذن</label><input id="outSerial" placeholder="تلقائي"></div>
+        
+        <div>
+            <label>من مخزن</label>
+            <select id="outWarehouse" style="border:1px solid #ccc; background:white">
+                <option value="">جار التحميل...</option>
+            </select>
+        </div>
+
+        <div style="grid-column: 1 / -1; display:flex; align-items:center; gap:10px; background:#e0f2fe; padding:8px; border-radius:5px;">
+            <label style="color:#0369a1; width:180px; font-weight:bold;">🔗 رقم أمر الشغل (الفاتورة):</label>
+            <input id="outJobOrderRef" placeholder="INV-..." style="border:1px solid #ccc; background:white; width: 100%; padding:5px;">
+            <button class="btn-load" onclick="loadInvoiceItems()">جلب القطع</button>
+        </div>
+
+        <div><label>اسم السيارة</label><input id="outCar" placeholder="-" readonly></div>
+        <div><label>العميل</label><input id="outCustomer" placeholder="-" readonly></div>
+    </div>
+
+    <table id="tbl">
+        <thead>
+            <tr>
+                <th width="20%">القطعة</th>
+                <th width="20%">الصنف</th>
+                <th width="15%">كود الرول (من المخزن)</th>
+                <th width="10%">الطول</th>
+                <th width="10%">العرض</th>
+                <th width="15%">المساحة</th>
+                <th width="5%">X</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    
+    <button class="btn-save" onclick="save()">تسجيل الصرف</button>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+    document.getElementById('outDate').valueAsDate = new Date();
+
+    // تحميل المخازن
+    window.onload = async () => {
+        try {
+            const whRes = await fetch(`${API}/warehouses/transactional`);
+            const warehouses = await whRes.json();
+            const whSelect = document.getElementById('outWarehouse');
+            
+            if (warehouses.length > 0) {
+                whSelect.innerHTML = '<option value="">-- اختر المخزن --</option>';
+                warehouses.forEach(w => {
+                    // 👇 التعديل: value=ID
+                    whSelect.innerHTML += `<option value="${w._id}">${w.path}</option>`;
+                });
+            } else {
+                whSelect.innerHTML = '<option value="">⚠️ لا توجد مخازن</option>';
+            }
+        } catch(e) {}
+    };
+
+    async function loadInvoiceItems() {
+        const jobNum = document.getElementById('outJobOrderRef').value;
+        if (!jobNum) { alert('أدخل رقم الفاتورة'); return; }
+        
+        try {
+            const res = await fetch(`${API}/sales/job-order/${jobNum}`);
+            if (!res.ok) throw new Error('الفاتورة غير موجودة');
+            const invoice = await res.json();
+            
+            document.getElementById('outCar').value = invoice.carModel ? `${invoice.carModel.brand} ${invoice.carModel.model}` : '-';
+            document.getElementById('outCustomer').value = invoice.customer?.name || '';
+            
+            const tbody = document.querySelector('tbody');
+            tbody.innerHTML = ''; 
+
+            for (const item of invoice.items) {
+                const len = item.lengthCM || item.length || 0;
+                const wid = item.widthCM || item.width || 0;
+                const area = item.area || (len * wid);
+
+                await addRow(
+                    item.partName, 
+                    item.product?._id, 
+                    item.productName || item.product?.name, 
+                    len, wid, area
+                );
+            }
+        } catch(e) { showMsg('خطأ: ' + e.message, 'red'); }
+    }
+
+    async function addRow(partName, prodId, prodName, len, wid, area) { 
+        const tbody = document.querySelector('tbody');
+        let rollOptions = '<option value="">جاري التحميل...</option>';
+        
+        try {
+            const res = await fetch(`${API}/stock/available-rolls?productId=${prodId}`);
+            const rolls = await res.json();
+            rollOptions = rolls.length > 0 
+                ? '<option value="">-- اختر الرول --</option>' + rolls.map(r => `<option value="${r}">${r}</option>`).join('')
+                : '<option value="">(لا يوجد رصيد)</option>';
+        } catch(e) { rollOptions = '<option value="">خطأ</option>'; }
+
+        const row = `<tr>
+            <td><input value="${partName || 'قطعة'}" readonly style="font-weight:bold"></td> 
+            <td><input value="${prodName}" readonly><input type="hidden" class="prod-id" value="${prodId}"></td>
+            <td><select class="roll-code-select" style="border:1px solid #3b82f6; background:#e0f2fe">${rollOptions}</select></td> 
+            <td><input class="len-input" value="${len}" readonly style="color:blue"></td>
+            <td><input class="wid-input" value="${wid}" readonly style="color:blue"></td>
+            <td><input class="area-output" value="${area}" readonly style="font-weight:bold; color:#059669"></td>
+            <td style="cursor:pointer; color:red" onclick="this.closest('tr').remove()">X</td>
+        </tr>`;
+        tbody.insertAdjacentHTML('beforeend', row);
+    }
+
+    async function save() {
+        const jobOrderRef = document.getElementById('outJobOrderRef').value;
+        const warehouse = document.getElementById('outWarehouse').value;
+        
+        if (!jobOrderRef) { showMsg('أدخل رقم أمر التشغيل', 'red'); return; }
+        if (!warehouse) { showMsg('اختر المخزن', 'red'); return; }
+
+        const rows = document.querySelectorAll('tbody tr');
+        const items = [];
+        
+        rows.forEach(tr => {
+            const rollCode = tr.querySelector('.roll-code-select').value;
+            items.push({
+                product: tr.querySelector('.prod-id').value,
+                rollCode: rollCode || 'General',
+                partName: tr.querySelectorAll('input')[0].value,
+                consumedLength: parseFloat(tr.querySelector('.len-input').value) || 0,
+                consumedWidth: parseFloat(tr.querySelector('.wid-input').value) || 0,
+                consumedArea: parseFloat(tr.querySelector('.area-output').value) || 0
+            });
+        });
+
+        const data = {
+            type: 'Outbound',
+            serialNumber: document.getElementById('outSerial').value,
+            date: document.getElementById('outDate').value,
+            jobOrder: jobOrderRef, 
+            warehouse: warehouse, 
+            carName: document.getElementById('outCar').value,
+            items: items
+        };
+
+        try {
+            const res = await fetch(`${API}/stock`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+            if(res.ok) {
+                showMsg('✅ تم الصرف بنجاح!', 'green');
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                const json = await res.json();
+                showMsg('خطأ: ' + json.message, 'red');
+            }
+        } catch(e) { showMsg('فشل الاتصال بالسيرفر', 'red'); }
+    }
+
+    function showMsg(text, color) {
+        const msg = document.getElementById('msg');
+        msg.innerText = text;
+        msg.style.display = 'block';
+        msg.style.background = color === 'green' ? '#dcfce7' : '#fee2e2';
+        msg.style.color = color === 'green' ? '#166534' : '#991b1b';
+        setTimeout(() => msg.style.display = 'none', 4000);
+    }
+</script>
+</body>
+</html>

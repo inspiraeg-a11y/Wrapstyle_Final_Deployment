@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>هيكل المخازن</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 25px; border-radius: 10px; max-width: 900px; margin: 0 auto; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        h2 { color: #1e293b; margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 15px; }
+        
+        .form-box { background: #e0f2fe; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #bae6fd; }
+        .row { display: flex; gap: 10px; margin-bottom: 10px; }
+        .col { flex: 1; }
+        input, select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        label { display: block; font-weight: bold; font-size: 13px; color: #0369a1; margin-bottom: 3px; }
+        
+        .btn { padding: 10px 20px; background: #0284c7; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn-del { background: #ef4444; padding: 3px 8px; font-size: 11px; border-radius: 3px; margin-right: 5px; color: white; border:none; cursor:pointer; }
+        .btn-edit { background: #f59e0b; padding: 3px 8px; font-size: 11px; border-radius: 3px; margin-right: 5px; color: white; border:none; cursor:pointer; }
+        
+        ul { list-style-type: none; padding-right: 20px; }
+        li { margin: 5px 0; position: relative; }
+        li::before { content: '└─'; position: absolute; right: -20px; top: 10px; color: #94a3b8; }
+        .tree-node { padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 5px; display: inline-block; min-width: 300px; }
+        .main-node { font-weight: bold; background: #f1f5f9; border-color: #cbd5e1; }
+        .acc-tag { font-size: 11px; color: #166534; background: #dcfce7; padding: 2px 6px; border-radius: 4px; margin-right: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>🏗️ هيكل المخازن (وربط الحسابات)</h2>
+    <input type="hidden" id="editId">
+    
+    <div class="form-box">
+        <div class="row">
+            <div class="col">
+                <label>نوع الإضافة</label>
+                <select id="type" onchange="toggleParent()">
+                    <option value="main">مخزن رئيسي (جديد)</option>
+                    <option value="sub">مخزن فرعي (تحت مخزن آخر)</option>
+                </select>
+            </div>
+            <div class="col" id="parentBox" style="display:none">
+                <label>المخزن الأب</label>
+                <select id="parent"><option value="">-- اختر --</option></select>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col">
+                <label>اسم المخزن</label>
+                <input id="name" placeholder="مثال: مخزن رولات 30">
+            </div>
+            <div class="col">
+                <label>كود المخزن</label>
+                <input id="code" placeholder="WH-...">
+            </div>
+        </div>
+        <div class="row">
+            <div class="col">
+                <label>ربط بالحساب المالي (من شجرة الحسابات)</label>
+                <select id="accId"><option value="">-- بدون ربط (أو اختر حساب) --</option></select>
+            </div>
+        </div>
+        <button class="btn" id="saveBtn" onclick="save()">حفظ المخزن</button>
+        <button class="btn" onclick="resetForm()" style="background:#64748b; margin-right:10px;">إلغاء</button>
+    </div>
+
+    <div id="treeContainer"></div>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+    let allWarehouses = [];
+
+    function toggleParent() {
+        const type = document.getElementById('type').value;
+        document.getElementById('parentBox').style.display = type === 'sub' ? 'block' : 'none';
+    }
+
+    async function init() {
+        // 1. تحميل الحسابات (الأصول فقط لسهولة البحث)
+        const accRes = await fetch(`${API}/accounts`);
+        const accs = await accRes.json();
+        const accSel = document.getElementById('accId');
+        accs.filter(a => a.type === 'Asset' && a.isTransactional).forEach(a => {
+            accSel.innerHTML += `<option value="${a._id}">${a.name} (${a.code})</option>`;
+        });
+
+        loadWarehouses();
+    }
+
+    async function loadWarehouses() {
+        const res = await fetch(`${API}/warehouses`);
+        allWarehouses = await res.json();
+        
+        // ملء قائمة الأباء
+        const parentSel = document.getElementById('parent');
+        parentSel.innerHTML = '<option value="">-- اختر المخزن الأب --</option>';
+        allWarehouses.forEach(w => {
+            parentSel.innerHTML += `<option value="${w._id}">${w.path}</option>`;
+        });
+
+        const container = document.getElementById('treeContainer');
+        container.innerHTML = buildTree(null);
+    }
+
+    function buildTree(parentId) {
+        const children = allWarehouses.filter(w => w.parent == parentId);
+        if (children.length === 0) return '';
+
+        let html = '<ul>';
+        children.forEach(child => {
+            const isMain = !child.parent;
+            const accInfo = child.accountId ? `<span class="acc-tag">💰 ${child.accountId.name}</span>` : '';
+            
+            html += `
+                <li>
+                    <div class="tree-node ${isMain ? 'main-node' : ''}">
+                        <span>${child.name} <small style="color:#666">(${child.code||'-'})</small></span>
+                        ${accInfo}
+                        <div style="float:left">
+                            <button class="btn-edit" onclick="edit('${child._id}')">✏️</button>
+                            <button class="btn-del" onclick="del('${child._id}')">x</button>
+                        </div>
+                    </div>
+                    ${buildTree(child._id)}
+                </li>
+            `;
+        });
+        html += '</ul>';
+        return html;
+    }
+
+    function edit(id) {
+        const w = allWarehouses.find(x => x._id === id);
+        if(w) {
+            document.getElementById('editId').value = w._id;
+            document.getElementById('name').value = w.name;
+            document.getElementById('code').value = w.code || '';
+            document.getElementById('accId').value = w.accountId ? w.accountId._id : '';
+            
+            if(w.parent) {
+                document.getElementById('type').value = 'sub';
+                document.getElementById('parent').value = w.parent;
+                toggleParent();
+            } else {
+                document.getElementById('type').value = 'main';
+                toggleParent();
+            }
+            
+            document.getElementById('saveBtn').innerText = 'تحديث البيانات';
+            document.getElementById('saveBtn').style.background = '#f59e0b';
+            window.scrollTo(0,0);
+        }
+    }
+
+    function resetForm() {
+        document.getElementById('editId').value = '';
+        document.getElementById('name').value = '';
+        document.getElementById('code').value = '';
+        document.getElementById('accId').value = '';
+        document.getElementById('saveBtn').innerText = 'حفظ المخزن';
+        document.getElementById('saveBtn').style.background = '#0284c7';
+    }
+
+    async function save() {
+        const id = document.getElementById('editId').value;
+        const name = document.getElementById('name').value;
+        const code = document.getElementById('code').value;
+        const type = document.getElementById('type').value;
+        const parent = type === 'sub' ? document.getElementById('parent').value : null;
+        const accountId = document.getElementById('accId').value || null;
+
+        if(!name) { alert('اكتب اسم المخزن'); return; }
+        if(type === 'sub' && !parent) { alert('اختار المخزن الأب'); return; }
+
+        const method = id ? 'PUT' : 'POST';
+        const url = id ? `${API}/warehouses/${id}` : `${API}/warehouses`;
+
+        try {
+            const res = await fetch(url, {
+                method: method, headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ name, code, parent, accountId })
+            });
+            if(res.ok) { alert('تم الحفظ'); loadWarehouses(); resetForm(); }
+            else { const j = await res.json(); alert('خطأ: ' + j.message); }
+        } catch(e) { alert('خطأ اتصال'); }
+    }
+
+    async function del(id) {
+        if(!confirm('حذف المخزن؟')) return;
+        const res = await fetch(`${API}/warehouses/${id}`, { method:'DELETE' });
+        if(res.ok) loadWarehouses();
+        else alert('لا يمكن حذف مخزن يحتوي على فروع.');
+    }
+
+    init();
+</script>
+</body>
+</html>

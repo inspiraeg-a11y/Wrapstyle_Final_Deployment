@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>طباعة إذن</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 40px; }
+        .slip { border: 2px solid #000; padding: 30px; max-width: 700px; margin: 0 auto; }
+        h2 { text-align: center; margin-bottom: 10px; text-decoration: underline; }
+        .type { text-align: center; font-size: 24px; font-weight: bold; margin-bottom: 30px; }
+        .row { display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 18px; border-bottom: 1px dashed #ccc; padding-bottom: 5px; }
+        .label { font-weight: bold; width: 150px; }
+        .val { font-weight: bold; color: #333; flex: 1; }
+        .amount { border: 2px solid #000; padding: 10px; text-align: center; font-size: 28px; font-weight: bold; margin: 30px 0; background: #eee; }
+        .sigs { display: flex; justify-content: space-between; margin-top: 60px; }
+        .sig { text-align: center; width: 30%; border-top: 1px solid #000; padding-top: 10px; }
+        @media print { button { display: none; } }
+    </style>
+</head>
+<body>
+<div class="slip">
+    <h2>WrapStyle ERP</h2>
+    <div id="type" class="type">...</div>
+
+    <div class="row"><span class="label">رقم الإذن:</span> <span class="val" id="serial"></span></div>
+    <div class="row"><span class="label">التاريخ:</span> <span class="val" id="date"></span></div>
+    <div class="row"><span class="label" id="acc1Lbl">الخزينة:</span> <span class="val" id="acc1"></span></div>
+    <div class="row"><span class="label" id="acc2Lbl">الطرف الآخر:</span> <span class="val" id="acc2"></span></div>
+    
+    <div class="row"><span class="label">طريقة الدفع:</span> <span class="val" id="method"></span></div>
+    <div class="row" id="bankRow" style="display:none"><span class="label">تفاصيل:</span> <span class="val" id="bank"></span></div>
+    <div class="row"><span class="label">وذلك عن:</span> <span class="val" id="desc"></span></div>
+
+    <div class="amount"><span id="amount">0.00</span> جنيه مصري</div>
+
+    <div class="sigs">
+        <div class="sig">المحاسب</div>
+        <div class="sig">المراجع</div>
+        <div class="sig">المستلم</div>
+    </div>
+</div>
+<div style="text-align:center; margin-top:20px"><button onclick="window.print()">🖨️ طباعة</button></div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+    window.onload = async () => {
+        const id = new URLSearchParams(window.location.search).get('id');
+        const res = await fetch(`${API}/treasury/${id}`);
+        const d = await res.json();
+        
+        document.getElementById('type').innerText = d.type==='Inbound' ? 'إذن قبض نقدية (وارد)' : 'إذن صرف نقدية (صادر)';
+        document.getElementById('serial').innerText = d.serialNumber;
+        document.getElementById('date').innerText = new Date(d.date).toLocaleDateString('ar-EG');
+        document.getElementById('acc1').innerText = d.treasuryAccount?.name;
+        document.getElementById('acc2').innerText = d.targetAccount?.name;
+        document.getElementById('method').innerText = d.paymentMethod;
+        document.getElementById('desc').innerText = d.description;
+        document.getElementById('amount').innerText = d.amount.toLocaleString();
+
+        if(d.type==='Inbound') {
+            document.getElementById('acc1Lbl').innerText = 'إلى حساب:';
+            document.getElementById('acc2Lbl').innerText = 'استلمنا من:';
+        } else {
+            document.getElementById('acc1Lbl').innerText = 'من حساب:';
+            document.getElementById('acc2Lbl').innerText = 'صرفنا إلى:';
+        }
+
+        if(d.paymentMethod !== 'Cash') {
+            document.getElementById('bankRow').style.display = 'flex';
+            document.getElementById('bank').innerText = `${d.bankName||''} - رقم: ${d.checkNumber||''}`;
+        }
+    };
+</script>
+</body>
+</html>

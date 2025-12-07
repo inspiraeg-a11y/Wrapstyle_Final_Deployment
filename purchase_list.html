@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>سجل المشتريات</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 25px; border-radius: 10px; max-width: 1200px; margin: 0 auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
+        th { background: #d1fae5; color: #065f46; }
+        
+        .btn { padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; color: white; margin: 0 2px; font-size: 12px; }
+        .btn-edit { background: #f59e0b; }
+        .btn-del { background: #ef4444; }
+        .btn-new { background: #10b981; padding: 10px 20px; text-decoration: none; display: inline-block; font-weight: bold; font-size: 14px; }
+        
+        .error-msg { background: #fee2e2; color: #991b1b; padding: 15px; border-radius: 5px; display: none; margin-bottom: 20px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div id="errorMsg" class="error-msg"></div>
+
+<div class="card">
+    <h2 style="display:flex; justify-content:space-between">
+        📋 سجل فواتير المشتريات
+        <a href="purchase_invoice.html" class="btn-new">+ فاتورة شراء جديدة</a>
+    </h2>
+    <table>
+        <thead><tr><th>رقم الفاتورة</th><th>التاريخ</th><th>المورد</th><th>الإجمالي</th><th>إجراءات</th></tr></thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+
+    async function load() {
+        try {
+            const res = await fetch(`${API}/purchases`);
+            if (!res.ok) throw new Error("فشل الاتصال");
+            const data = await res.json();
+            
+            const tbody = document.getElementById('tbody');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;color:#666;">لا توجد فواتير مشتريات</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.map(i => `
+                <tr>
+                    <td>${i.invoiceNumber}</td>
+                    <td>${new Date(i.date).toLocaleDateString('ar-EG')}</td>
+                    <td>${i.supplier ? i.supplier.name : '-'}</td>
+                    <td style="font-weight:bold; color:green">${i.totalAmount}</td>
+                    <td>
+                        <button class="btn btn-edit" onclick="location.href='purchase_invoice.html?id=${i._id}'">✏️ تعديل</button>
+                        <button class="btn btn-del" onclick="del('${i._id}')">🗑️ حذف</button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            const msg = document.getElementById('errorMsg');
+            msg.innerText = '❌ خطأ: ' + e.message;
+            msg.style.display = 'block';
+        }
+    }
+
+    async function del(id) {
+        if(!confirm('هل أنت متأكد من الحذف؟ سيتم خصم الكميات من المخزن وإلغاء القيد.')) return;
+        try {
+            const res = await fetch(`${API}/purchases/${id}`, { method: 'DELETE' });
+            if(res.ok) { alert('تم الحذف وتصحيح المخزن'); load(); } 
+            else { alert('فشل الحذف'); }
+        } catch(e) { alert('خطأ اتصال'); }
+    }
+
+    load();
+</script>
+</body>
+</html>

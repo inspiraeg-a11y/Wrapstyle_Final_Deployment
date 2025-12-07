@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>أرصدة المخزن</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 25px; border-radius: 10px; max-width: 1200px; margin: 0 auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
+        th { background: #0f172a; color: white; }
+        .btn { padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; color: white; font-size: 12px; margin: 0 2px; }
+        .btn-edit { background: #f59e0b; } .btn-del { background: #ef4444; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h2>📊 أرصدة المخزن الحالية</h2>
+    <table id="tbl">
+        <thead><tr><th>الكود</th><th>الاسم</th><th>الرصيد</th><th>التكلفة</th><th>القيمة</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+        <tbody id="tbody"></tbody>
+    </table>
+</div>
+<script>
+    const API = 'http://localhost:5000/api';
+    async function load() {
+        try {
+            const res = await fetch(`${API}/products`);
+            const data = await res.json();
+            document.getElementById('tbody').innerHTML = data.map(p => {
+                const stock = p.currentStock || 0;
+                let cost = p.pricing?.unitCost || 0;
+                if(cost===0 && p.dimensions?.area>0) cost = p.pricing.purchasePrice/p.dimensions.area;
+                return `<tr>
+                    <td>${p.code}</td>
+                    <td>${p.name}</td>
+                    <td style="font-weight:bold">${stock.toFixed(2)}</td>
+                    <td>${cost.toFixed(4)}</td>
+                    <td>${(stock*cost).toFixed(2)}</td>
+                    <td>${stock<=0 ? '❌' : '✅'}</td>
+                    <td>
+                        <button class="btn btn-edit" onclick="location.href='products.html?id=${p._id}'">✏️</button>
+                        <button class="btn btn-del" onclick="del('${p._id}')">🗑️</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        } catch(e) { alert('خطأ تحميل'); }
+    }
+    async function del(id) {
+        if(!confirm('حذف الصنف؟')) return;
+        await fetch(`${API}/products/${id}`, { method: 'DELETE' });
+        load();
+    }
+    load();
+</script>
+</body>
+</html>

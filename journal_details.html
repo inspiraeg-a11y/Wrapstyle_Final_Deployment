@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تفاصيل القيد</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .paper { background: white; padding: 40px; max-width: 1100px; margin: 0 auto; border: 1px solid #ddd; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        
+        h2 { text-align: center; color: #1e293b; margin-bottom: 30px; border-bottom: 2px solid #eee; padding-bottom: 15px; }
+        
+        .header-info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; background: #f8fafc; padding: 15px; border-radius: 8px; }
+        .label { font-weight: bold; color: #64748b; display: block; font-size: 13px; }
+        .val { font-size: 16px; font-weight: bold; color: #334155; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
+        th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: center; }
+        th { background: #f1f5f9; color: #475569; font-weight: bold; }
+        
+        .debit { color: #166534; font-weight: bold; background-color: #f0fdf4; }
+        .credit { color: #991b1b; font-weight: bold; background-color: #fef2f2; }
+        
+        .actions { text-align: center; margin-top: 30px; }
+        .btn { padding: 10px 25px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; font-size: 16px; }
+        .btn-print { background: #3b82f6; }
+        .btn-back { background: #64748b; text-decoration: none; font-size: 14px; padding: 10px 20px; display: inline-block; border-radius: 5px; color: white; margin-left: 10px; }
+
+        @media print {
+            body { background: white; padding: 0; }
+            .paper { box-shadow: none; border: none; width: 100%; max-width: 100%; margin: 0; padding: 0; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="paper">
+    <h2>سند قيد يومية (Journal Voucher)</h2>
+    
+    <div class="header-info">
+        <div><span class="label">رقم القيد:</span><span class="val" id="refNo">...</span></div>
+        <div><span class="label">التاريخ:</span><span class="val" id="date">...</span></div>
+        <div style="grid-column: 1 / -1;"><span class="label">البيان الرئيسي:</span><span class="val" id="desc">...</span></div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th width="10%">الكود</th>
+                <th width="20%">الحساب الرئيسي</th>
+                <th width="20%">الحساب الفرعي</th>
+                <th width="30%">البيان الفرعي</th>
+                <th width="10%">مدين</th>
+                <th width="10%">دائن</th>
+            </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+        <tfoot style="background:#f8fafc; font-weight:bold">
+            <tr>
+                <td colspan="4" style="text-align:left; padding-left:20px;">الإجمالي:</td>
+                <td id="totalDebit" class="debit" style="background:none; color:black">0.00</td>
+                <td id="totalCredit" class="credit" style="background:none; color:black">0.00</td>
+            </tr>
+        </tfoot>
+    </table>
+    
+    <div style="margin-top: 40px; display: flex; justify-content: space-between;">
+        <div style="text-align:center; width:30%; border-top:1px dashed #000; padding-top:5px;">توقيع المحاسب</div>
+        <div style="text-align:center; width:30%; border-top:1px dashed #000; padding-top:5px;">توقيع المدير المالي</div>
+    </div>
+
+    <div class="actions no-print">
+        <a href="journal.html" class="btn-back">⬅️ عودة للدفتر</a>
+        <button class="btn btn-print" onclick="window.print()">🖨️ طباعة القيد</button>
+    </div>
+</div>
+
+<script>
+    const API = 'http://localhost:5000/api';
+    
+    window.onload = async () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const id = urlParams.get('id');
+        if(id) loadEntry(id);
+        else { alert('لا يوجد قيد'); window.location.href = 'journal.html'; }
+    };
+
+    async function loadEntry(id) {
+        try {
+            const res = await fetch(`${API}/journal/${id}`);
+            if(!res.ok) throw new Error('القيد غير موجود');
+            const entry = await res.json();
+
+            document.getElementById('refNo').innerText = entry.referenceNo;
+            document.getElementById('date').innerText = new Date(entry.entryDate).toLocaleDateString('ar-EG');
+            document.getElementById('desc').innerText = entry.description;
+            document.getElementById('totalDebit').innerText = entry.totalDebit.toLocaleString(undefined, {minimumFractionDigits:2});
+            document.getElementById('totalCredit').innerText = entry.totalCredit.toLocaleString(undefined, {minimumFractionDigits:2});
+
+            const tbody = document.getElementById('tbody');
+            tbody.innerHTML = entry.lines.map(line => `
+                <tr>
+                    <td>${line.accountCode || '-'}</td>
+                    <td style="color:#555; font-weight:bold">${line.mainAccountName || '-'}</td>
+                    <td style="color:#000; font-weight:bold">${line.subAccountName || 'غير معروف'}</td>
+                    <td>${line.description || '-'}</td>
+                    <td class="debit">${line.debit > 0 ? line.debit.toLocaleString(undefined, {minimumFractionDigits:2}) : '-'}</td>
+                    <td class="credit">${line.credit > 0 ? line.credit.toLocaleString(undefined, {minimumFractionDigits:2}) : '-'}</td>
+                </tr>
+            `).join('');
+            
+        } catch(e) { 
+            alert('خطأ: ' + e.message); 
+        }
+    }
+</script>
+</body>
+</html>

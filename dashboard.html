@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* الألوان المتغيرة (CSS Variables) */
+        :root {
+            --primary: #4f46e5; /* الموف الافتراضي */
+            --bg: #f8fafc;
+            --text: #334155;
+            --card-bg: #ffffff;
+            --shadow: rgba(0,0,0,0.05);
+        }
+
+        /* الثيم الأخضر */
+        [data-theme="green"] {
+            --primary: #059669;
+            --bg: #f0fdf4;
+            --text: #064e3b;
+        }
+
+        /* الثيم الأسود (Dark Mode) */
+        [data-theme="dark"] {
+            --primary: #6366f1;
+            --bg: #0f172a;
+            --text: #f8fafc;
+            --card-bg: #1e293b;
+            --shadow: rgba(0,0,0,0.3);
+        }
+
+        body { font-family: 'Cairo', sans-serif; padding: 20px; background-color: var(--bg); color: var(--text); transition: 0.3s; }
+        
+        /* الهيدر وزرار الإعدادات */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .settings-btn { background: var(--card-bg); border: 1px solid #ccc; padding: 10px; border-radius: 50%; cursor: pointer; box-shadow: 0 2px 5px var(--shadow); font-size: 20px; }
+        
+        /* شبكة الكروت */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        
+        .stat-card { 
+            background: var(--card-bg); padding: 20px; border-radius: 15px; 
+            box-shadow: 0 4px 15px var(--shadow); 
+            border-bottom: 4px solid var(--primary);
+            transition: 0.3s; display: none; /* مخفي افتراضياً لحد ما نفعله */
+        }
+        .stat-card.visible { display: flex; align-items: center; gap: 15px; }
+        .stat-card:hover { transform: translateY(-5px); }
+
+        .icon-box { width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; background: rgba(0,0,0,0.05); }
+        .stat-info h3 { margin: 0; font-size: 13px; opacity: 0.8; }
+        .stat-info .num { font-size: 24px; font-weight: 800; margin-top: 5px; }
+
+        /* لوحة الإعدادات (Modal) */
+        .settings-panel {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 999; display: none;
+            justify-content: center; align-items: center;
+        }
+        .settings-content {
+            background: var(--card-bg); padding: 30px; border-radius: 15px; width: 400px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2); color: var(--text);
+        }
+        .color-options { display: flex; gap: 10px; margin: 15px 0; }
+        .color-circle { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+        .color-circle.selected { border-color: #333; transform: scale(1.1); }
+
+        .toggle-item { display: flex; justify-content: space-between; margin: 10px 0; padding: 5px 0; border-bottom: 1px solid #eee; }
+        
+        .charts-container { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        .chart-box { background: var(--card-bg); padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px var(--shadow); }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div>
+            <h1>👋 لوحة القيادة</h1>
+            <p>نظرة شاملة على نشاطك التجاري</p>
+        </div>
+        <button class="settings-btn" onclick="openSettings()">⚙️ تخصيص</button>
+    </div>
+
+    <!-- الكروت (هتظهر وتختفي حسب مزاجك) -->
+    <div class="stats-grid">
+        <div class="stat-card" id="card-sales" data-default="true">
+            <div class="icon-box">🛒</div>
+            <div class="stat-info"><h3>مبيعات الشهر</h3><div class="num" id="val-sales">0.00</div></div>
+        </div>
+        <div class="stat-card" id="card-cash" data-default="true">
+            <div class="icon-box">💵</div>
+            <div class="stat-info"><h3>رصيد النقدية</h3><div class="num" id="val-cash">0.00</div></div>
+        </div>
+        <div class="stat-card" id="card-stock" data-default="true">
+            <div class="icon-box">📦</div>
+            <div class="stat-info"><h3>قيمة المخزون</h3><div class="num" id="val-stock">0.00</div></div>
+        </div>
+        <div class="stat-card" id="card-receivables" data-default="false">
+            <div class="icon-box">📉</div>
+            <div class="stat-info"><h3>لنا (مديونية عملاء)</h3><div class="num" id="val-receivables">0.00</div></div>
+        </div>
+        <div class="stat-card" id="card-payables" data-default="false">
+            <div class="icon-box">📈</div>
+            <div class="stat-info"><h3>علينا (موردين)</h3><div class="num" id="val-payables">0.00</div></div>
+        </div>
+    </div>
+
+    <div class="charts-container">
+        <div class="chart-box"><canvas id="mainChart"></canvas></div>
+        <div class="chart-box"><canvas id="pieChart"></canvas></div>
+    </div>
+
+    <!-- نافذة الإعدادات -->
+    <div class="settings-panel" id="settingsPanel">
+        <div class="settings-content">
+            <h3>🎨 اختر مزاجك (اللون)</h3>
+            <div class="color-options">
+                <div class="color-circle" style="background:#4f46e5" onclick="setTheme('default')"></div>
+                <div class="color-circle" style="background:#059669" onclick="setTheme('green')"></div>
+                <div class="color-circle" style="background:#1e293b" onclick="setTheme('dark')"></div>
+            </div>
+
+            <h3>👁️ اختر الكروت اللي تظهر</h3>
+            <div class="toggle-item">
+                <span>مبيعات الشهر</span> <input type="checkbox" id="chk-sales" onchange="saveWidgets()">
+            </div>
+            <div class="toggle-item">
+                <span>رصيد النقدية</span> <input type="checkbox" id="chk-cash" onchange="saveWidgets()">
+            </div>
+            <div class="toggle-item">
+                <span>قيمة المخزون</span> <input type="checkbox" id="chk-stock" onchange="saveWidgets()">
+            </div>
+            <div class="toggle-item">
+                <span>لنا (العملاء)</span> <input type="checkbox" id="chk-receivables" onchange="saveWidgets()">
+            </div>
+            <div class="toggle-item">
+                <span>علينا (الموردين)</span> <input type="checkbox" id="chk-payables" onchange="saveWidgets()">
+            </div>
+
+            <button onclick="closeSettings()" style="width:100%; padding:10px; margin-top:15px; background:var(--primary); color:white; border:none; border-radius:5px; cursor:pointer">حفظ وإغلاق</button>
+        </div>
+    </div>
+
+    <script>
+        const API = 'http://localhost:5000/api';
+
+        // 1. تحميل الإعدادات عند الفتح
+        window.onload = async () => {
+            loadTheme();
+            loadWidgets();
+            await fetchData();
+        };
+
+        // 2. جلب البيانات الحقيقية
+        async function fetchData() {
+            try {
+                const res = await fetch(`${API}/reports/dashboard-stats`);
+                const data = await res.json();
+
+                document.getElementById('val-sales').innerText = data.sales.total.toLocaleString();
+                document.getElementById('val-cash').innerText = data.cash.toLocaleString();
+                document.getElementById('val-stock').innerText = data.stock.toLocaleString();
+                document.getElementById('val-receivables').innerText = data.receivables.toLocaleString();
+                document.getElementById('val-payables').innerText = data.payables.toLocaleString();
+
+                initCharts(data);
+            } catch(e) { console.log('Error fetching stats'); }
+        }
+
+        // 3. الثيمات والألوان
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+        }
+        function loadTheme() {
+            const saved = localStorage.getItem('theme') || 'default';
+            document.documentElement.setAttribute('data-theme', saved);
+        }
+
+        // 4. التحكم في الكروت (الزيتونة)
+        function openSettings() {
+            document.getElementById('settingsPanel').style.display = 'flex';
+            // تحديث حالة الـ Checkboxes
+            ['sales','cash','stock','receivables','payables'].forEach(key => {
+                const isVisible = localStorage.getItem(`widget_${key}`) !== 'hidden';
+                document.getElementById(`chk-${key}`).checked = isVisible;
+            });
+        }
+        function closeSettings() { document.getElementById('settingsPanel').style.display = 'none'; }
+
+        function saveWidgets() {
+            ['sales','cash','stock','receivables','payables'].forEach(key => {
+                const chk = document.getElementById(`chk-${key}`);
+                const card = document.getElementById(`card-${key}`);
+                
+                if(chk.checked) {
+                    card.classList.add('visible');
+                    localStorage.setItem(`widget_${key}`, 'visible');
+                } else {
+                    card.classList.remove('visible');
+                    localStorage.setItem(`widget_${key}`, 'hidden');
+                }
+            });
+        }
+        
+        function loadWidgets() {
+            ['sales','cash','stock','receivables','payables'].forEach(key => {
+                const saved = localStorage.getItem(`widget_${key}`);
+                const card = document.getElementById(`card-${key}`);
+                // الافتراضي: أول 3 ظاهرين، والباقي مخفي، إلا لو اليوزر غير
+                const isDefaultVisible = card.getAttribute('data-default') === 'true';
+                
+                if(saved === 'visible' || (saved === null && isDefaultVisible)) {
+                    card.classList.add('visible');
+                } else {
+                    card.classList.remove('visible');
+                }
+            });
+        }
+
+        // 5. الرسوم البيانية
+        function initCharts(data) {
+            const ctx1 = document.getElementById('mainChart').getContext('2d');
+            new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: ['أسبوع 1', 'أسبوع 2', 'أسبوع 3', 'أسبوع 4'],
+                    datasets: [{
+                        label: 'المبيعات',
+                        data: [10000, 15000, 8000, data.sales.total],
+                        borderColor: '#4f46e5',
+                        fill: true,
+                        backgroundColor: 'rgba(79, 70, 229, 0.1)'
+                    }]
+                },
+                options: { responsive: true }
+            });
+
+            const ctx2 = document.getElementById('pieChart').getContext('2d');
+            new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: ['مخزون', 'نقدية', 'ديون'],
+                    datasets: [{
+                        data: [data.stock, data.cash, data.receivables],
+                        backgroundColor: ['#10b981', '#3b82f6', '#f59e0b']
+                    }]
+                }
+            });
+        }
+    </script>
+</body>
+</html>

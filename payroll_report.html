@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>سجل الرواتب</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f1f5f9; }
+        .card { background: white; padding: 25px; border-radius: 10px; max-width: 1100px; margin: 0 auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #eee; padding: 10px; text-align: center; }
+        th { background: #1e293b; color: white; }
+        
+        .btn { padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 12px; font-weight: bold; border: none; cursor: pointer; margin: 0 2px; color: white; }
+        .btn-view { background: #3b82f6; }
+        .btn-post { background: #10b981; }
+        .btn-del { background: #ef4444; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h2>📅 أرشيف الرواتب المصروفة</h2>
+    <div style="text-align:center">
+        <label>فلتر بالشهر:</label> <input type="month" id="month">
+        <button onclick="load()" style="background:#3b82f6; color:white; padding:5px 15px; border:none; cursor:pointer">بحث</button>
+    </div>
+    <p style="font-size:13px; color:#666; text-align:center">بعد استيراد الإكسيل، اضغط على "ترحيل القيد" لإنشاء القيد المحاسبي المفصل.</p>
+    <table id="tbl"><thead><tr><th>الشهر</th><th>تاريخ الصرف</th><th>الموظفين</th><th>الصافي</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody></tbody></table>
+</div>
+<script>
+    const API = 'http://localhost:5000/api/hr';
+    async function load() {
+        const month = document.getElementById('month').value;
+        const url = month ? `${API}/payroll?month=${month}` : `${API}/payroll`;
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        document.querySelector('tbody').innerHTML = data.map(p => `
+            <tr>
+                <td style="font-weight:bold">${p.month}</td>
+                <td>${new Date(p.date).toLocaleDateString('ar-EG')}</td>
+                <td>${p.details.length}</td>
+                <td style="font-weight:bold; color:green">${p.totalAmount.toLocaleString()}</td>
+                <td>${p.status === 'Posted' ? '✅ مرحل' : '⚠️ مسودة'}</td>
+                <td>
+                    <a href="payroll.html?viewMonth=${p.month}" class="btn btn-view">👁️ عرض</a>
+                    <button class="btn btn-post" onclick="postEntry('${p._id}')">⚙️ ترحيل القيد</button>
+                    <button class="btn btn-del" onclick="del('${p._id}')">🗑️ حذف</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    async function postEntry(id) {
+        if(!confirm('هل تريد إنشاء القيد المحاسبي المفصل لهذا الشهر؟')) return;
+        try {
+            const res = await fetch(`${API}/payroll/${id}/post`, { method: 'POST' });
+            const json = await res.json();
+            if(res.ok) { alert(json.message); load(); }
+            else { alert('خطأ: ' + json.message); }
+        } catch(e) { alert('خطأ اتصال'); }
+    }
+
+    async function del(id) {
+        if(!confirm('تحذير: سيتم الحذف وإلغاء القيد وعكس رصيد الإجازات!')) return;
+        try {
+            const res = await fetch(`${API}/payroll/${id}`, { method: 'DELETE' });
+            if(res.ok) { alert('تم الحذف'); load(); }
+            else { alert('فشل'); }
+        } catch(e) { alert('خطأ اتصال'); }
+    }
+
+    load();
+</script>
+</body>
+</html>
