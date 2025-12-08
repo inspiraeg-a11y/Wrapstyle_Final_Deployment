@@ -6,22 +6,26 @@
       "use": "@vercel/node"
     },
     {
-      "src": "**.html", // لبناء ملفات HTML الثابتة من الجذر
+      "src": "**.html", // لبناء ملفات HTML الثابتة من الجذر (بما في ذلك index.html)
+      "use": "@vercel/static"
+    },
+    {
+      "src": "**.js", // لبناء ملفات JS الثابتة (Scripts) من الجذر
       "use": "@vercel/static"
     }
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
+      "src": "/api/(.*)", // لتوجيه كل طلبات API إلى سيرفر Node.js
       "dest": "server.js"
     },
     {
-      "src": "/", // عند زيارة الرابط الرئيسي
-      "dest": "products_list.html" // (أو أي ملف HTML تريد أن يفتحه أولاً)
+      "src": "/", // عند زيارة الرابط الرئيسي (Homepage)
+      "dest": "index.html" // توجيه مباشر إلى ملف index.html
     },
     {
-      "src": "/(.*)",
-      "dest": "/$1" // لتوجيه الطلبات الأخرى لملفات CSS/JS/HTML في الجذر
+      "src": "/(.*)", // لجميع الأصول الأخرى (CSS, صور، ملفات JS)
+      "dest": "/$1"
     }
   ]
 }
