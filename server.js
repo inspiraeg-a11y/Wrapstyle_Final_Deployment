@@ -1,51 +1,51 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-require('dotenv').config();
+const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 5001;
+const PORT = 5000; 
 
-// 🌐 مسار الاتصال بقاعدة بيانات MongoDB Atlas
-// يعتمد هذا المتغير الآن بالكامل على ما ستحدده في إعدادات Vercel
-const MONGODB_URI = process.env.MONGODB_URI;
-
-// التحقق من وجود متغير البيئة
-if (!MONGODB_URI) {
-    console.error("❌ MONGODB_URI is not defined in environment variables.");
-    process.exit(1); // إيقاف التطبيق إذا لم يتم العثور على المسار
-}
-
-// Middlewares
+// Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.static('public')); 
 
-// 📡 الاتصال بقاعدة البيانات
-mongoose.connect(MONGODB_URI)
-  .then(() => {
-    console.log('✅ Cloud DB Connection: Connected Successfully!');
-  })
-  .catch(err => {
-    console.error('❌ Cloud DB Connection Error: Failed to connect.', err.message);
-  });
+// الاتصال بقاعدة البيانات
+mongoose.connect('mongodb://127.0.0.1:27017/wrapstyle_erp')
+.then(() => console.log('✅ Database Connected Successfully'))
+.catch(err => console.log('❌ Database Connection Error:', err));
 
+// ==========================================================
+// 🔗 ربط المسارات (All Routes) - تم تصحيح الأخطاء المطبعية
+// ==========================================================
 
-// 🛣️ تعريف وتضمين مسارات التطبيق (Routes)
-// تأكد من أن جميع ملفات المسارات موجودة في مجلد "routes"
-app.use('/api/accounts', require('./routes/accountsRoutes'));
+// 1. البيانات الأساسية
+app.use('/api/accounts', require('./routes/accountRoutes'));     // 👈 تم التصحيح
+app.use('/api/cost-centers', require('./routes/costCenterRoutes'));
 app.use('/api/customers', require('./routes/customerRoutes'));
-app.use('/api/employees', require('./routes/employeeRoutes'));
-app.use('/api/products', require('./routes/productRoutes'));
-app.use('/api/purchases', require('./routes/purchaseRoutes'));
-app.use('/api/sales', require('./routes/salesRoutes'));
-app.use('/api/stock', require('./routes/stockRoutes'));
 app.use('/api/suppliers', require('./routes/supplierRoutes'));
-app.use('/api/treasury', require('./routes/treasuryRoutes'));
+app.use('/api/products', require('./routes/productRoutes'));
+app.use('/api/cars', require('./routes/carRoutes'));
 app.use('/api/warehouses', require('./routes/warehouseRoutes'));
 
-// ⚙️ تشغيل السيرفر
-// ملاحظة: Vercel لا يستخدم هذا الجزء، لكنه ضروري للتجربة المحلية.
+// 2. العمليات والفواتير
+app.use('/api/sales', require('./routes/salesRoutes'));
+app.use('/api/purchases', require('./routes/purchaseRoutes'));
+app.use('/api/stock', require('./routes/stockRoutes'));
+
+// 3. المحاسبة والتقارير
+app.use('/api/journal', require('./routes/journalRoutes'));
+app.use('/api/reports', require('./routes/reportRoutes'));
+
+// 4. الإداريات
+app.use('/api/treasury', require('./routes/treasuryRoutes'));
+app.use('/api/hr', require('./routes/hrRoutes'));
+
+// 5. أدوات النظام
+app.use('/api/data', require('./routes/dataRoutes'));
+
+// تشغيل السيرفر
 app.listen(PORT, () => {
-  console.log(`🚀 Server started on port ${PORT}`);
-  console.log(`🌐 Open Browser: http://localhost:${PORT}`);
+    console.log(`🚀 Server started on http://localhost:${PORT}`);
 });
