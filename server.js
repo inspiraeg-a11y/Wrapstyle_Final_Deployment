@@ -2,26 +2,42 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+// قد تحتاج لـ dotenv لاستخدام .env محليًا
+// const dotenv = require('dotenv');
+// dotenv.config();
 
 const app = express();
-const PORT = 5000; 
+// استخدم متغير PORT من البيئة (Vercel يستخدمه) أو 5000 محليًا
+const PORT = process.env.PORT || 5000; 
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); 
+app.use(express.static('public'));
 
-// الاتصال بقاعدة البيانات
-mongoose.connect('mongodb://127.0.0.1:27017/wrapstyle_erp')
+// ==========================================================
+// 🔑 الاتصال بقاعدة البيانات باستخدام متغير البيئة (Critical Fix)
+// ==========================================================
+
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+    console.error("❌ MONGODB_URI is not defined! Check Vercel Environment Variables or your local .env file.");
+    // يتوقف السيرفر عن العمل إذا لم يجد المتغير
+    process.exit(1);
+}
+
+mongoose.connect(MONGODB_URI) 
 .then(() => console.log('✅ Database Connected Successfully'))
 .catch(err => console.log('❌ Database Connection Error:', err));
+
 
 // ==========================================================
 // 🔗 ربط المسارات (All Routes) - تم تصحيح الأخطاء المطبعية
 // ==========================================================
 
 // 1. البيانات الأساسية
-app.use('/api/accounts', require('./routes/accountRoutes'));     // 👈 تم التصحيح
+app.use('/api/accounts', require('./routes/accountRoutes'));    
 app.use('/api/cost-centers', require('./routes/costCenterRoutes'));
 app.use('/api/customers', require('./routes/customerRoutes'));
 app.use('/api/suppliers', require('./routes/supplierRoutes'));
