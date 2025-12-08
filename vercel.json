@@ -6,7 +6,7 @@
       "use": "@vercel/node"
     },
     {
-      "src": "frontend/**",
+      "src": "**.html", // لبناء ملفات HTML الثابتة من الجذر
       "use": "@vercel/static"
     }
   ],
@@ -16,8 +16,12 @@
       "dest": "server.js"
     },
     {
+      "src": "/", // عند زيارة الرابط الرئيسي
+      "dest": "products_list.html" // (أو أي ملف HTML تريد أن يفتحه أولاً)
+    },
+    {
       "src": "/(.*)",
-      "dest": "frontend/$1"
+      "dest": "/$1" // لتوجيه الطلبات الأخرى لملفات CSS/JS/HTML في الجذر
     }
   ]
 }
