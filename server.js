@@ -2,42 +2,45 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
-// قد تحتاج لإلغاء التعليق عن السطرين التاليين لتشغيل المشروع محليًا
-// const dotenv = require('dotenv');
-// dotenv.config(); 
 
 const app = express();
-// استخدام متغير PORT من البيئة (Vercel) أو 5000 محليًا
+
+// 👇 النقطة الحرجة: نستخدم متغير البيئة (للرفع) أو نستخدم 5000 (للتشغيل المحلي)
 const PORT = process.env.PORT || 5000; 
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static('public')); 
 
 // ==========================================================
-// 🔑 الاتصال بقاعدة البيانات باستخدام متغير البيئة (Critical Fix)
+// 🔑 الاتصال بقاعدة البيانات (المفتاح الذكي)
 // ==========================================================
 
-const MONGODB_URI = process.env.MONGODB_URI;
+// إذا كنت ترفع على Render/Vercel، الرابط سيأتي من متغير البيئة
+const CLOUD_URI = process.env.MONGODB_URI;
 
-if (!MONGODB_URI) {
-    console.error("❌ MONGODB_URI is not defined! Check Vercel Environment Variables or your local .env file.");
-    // يتوقف السيرفر عن العمل إذا لم يجد المتغير
-    process.exit(1);
-}
+// إذا لم يتم العثور على رابط سحابي، نستخدم الرابط المحلي القديم
+const LOCAL_URI = 'mongodb://127.0.0.1:27017/wrapstyle_erp';
 
-mongoose.connect(MONGODB_URI) 
-.then(() => console.log('✅ Database Connected Successfully'))
-.catch(err => console.log('❌ Database Connection Error:', err));
+const MONGODB_URI = CLOUD_URI || LOCAL_URI;
+
+mongoose.connect(MONGODB_URI)
+.then(() => {
+    console.log(`✅ Database Connected Successfully (Mode: ${CLOUD_URI ? 'Cloud' : 'Local'})`);
+})
+.catch(err => {
+    console.error(`❌ Database Connection Error: ${err.message}`);
+    // يمكنك اختيار إيقاف السيرفر هنا لو فشل الاتصال
+});
 
 
 // ==========================================================
-// 🔗 ربط المسارات (All Routes) - تم تصحيح الأخطاء المطبعية وحالة الأحرف
+// 🔗 ربط المسارات (تم تصحيح الأخطاء المطبعية)
 // ==========================================================
 
 // 1. البيانات الأساسية
-app.use('/api/accounts', require('./routes/accountRoutes'));    
+app.use('/api/accounts', require('./routes/accountRoutes'));     // 👈 تم التصحيح (accountRoutes)
 app.use('/api/cost-centers', require('./routes/costCenterRoutes'));
 app.use('/api/customers', require('./routes/customerRoutes'));
 app.use('/api/suppliers', require('./routes/supplierRoutes'));
