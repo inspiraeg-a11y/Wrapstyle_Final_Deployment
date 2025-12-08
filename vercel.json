@@ -6,25 +6,25 @@
       "use": "@vercel/node"
     },
     {
-      "src": "**.html", // لبناء ملفات HTML الثابتة من الجذر (بما في ذلك index.html)
+      "src": "**.html",
       "use": "@vercel/static"
     },
     {
-      "src": "**.js", // لبناء ملفات JS الثابتة (Scripts) من الجذر
+      "src": "**.js",
       "use": "@vercel/static"
     }
   ],
   "routes": [
     {
-      "src": "/api/(.*)", // لتوجيه كل طلبات API إلى سيرفر Node.js
+      "src": "/api/(.*)",
       "dest": "server.js"
     },
     {
-      "src": "/", // عند زيارة الرابط الرئيسي (Homepage)
-      "dest": "index.html" // توجيه مباشر إلى ملف index.html
+      "src": "/",
+      "dest": "index.html"
     },
     {
-      "src": "/(.*)", // لجميع الأصول الأخرى (CSS, صور، ملفات JS)
+      "src": "/(.*)",
       "dest": "/$1"
     }
   ]
